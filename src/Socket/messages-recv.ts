@@ -90,14 +90,15 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 	/** Circuit breaker to prevent PreKey error loops */
 	const prekeyCircuitBreaker = createPreKeyCircuitBreaker(logger)
 
-	logger.info(
+	logger.warn(
 		{
+				component: 'CircuitBreaker',
 			failureThreshold: 5,
 			failureWindow: '60s',
 			openTimeout: '30s',
 			successThreshold: 2
 		},
-		'Circuit Breaker initialized for PreKey error protection'
+		'🔧 Circuit Breaker initialized for PreKey error protection'
 	)
 
 	const msgRetryCache =
@@ -266,7 +267,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 
 			await sendNode(receipt)
 
-			logger.info({ msgAttrs: node.attrs, retryCount }, 'sent retry receipt')
+			logger.warn({ msgAttrs: node.attrs, retryCount }, 'sent retry receipt')
 		})
 	}
 
@@ -284,11 +285,11 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		} else {
 			const identityNode = getBinaryNodeChild(node, 'identity')
 			if (identityNode) {
-				logger.info({ jid: from }, 'identity changed')
+				logger.warn({ jid: from }, 'identity changed')
 				// not handling right now
 				// signal will override new identity anyway
 			} else {
-				logger.info({ node }, 'unknown encrypt notification')
+				logger.warn({ node }, 'unknown encrypt notification')
 			}
 		}
 	}
@@ -445,7 +446,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 				const devices = getBinaryNodeChildren(child, 'device')
 				if (areJidsSameUser(child.attrs.jid, authState.creds.me!.id)) {
 					const deviceJids = devices.map(d => d.attrs.jid)
-					logger.info({ deviceJids }, 'got my own devices')
+					logger.warn({ deviceJids }, 'got my own devices')
 				}
 
 				break
@@ -489,7 +490,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 					const newDuration = +child.attrs.duration
 					const timestamp = +child.attrs.t
 
-					logger.info({ newDuration }, 'updated account disappearing mode')
+					logger.warn({ newDuration }, 'updated account disappearing mode')
 
 					ev.emit('creds.update', {
 						accountSettings: {
@@ -727,10 +728,10 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 									logger.error({ key, ids, trace: error.stack }, 'error in sending message again')
 								}
 							} else {
-								logger.info({ attrs, key }, 'recv retry for not fromMe message')
+								logger.warn({ attrs, key }, 'recv retry for not fromMe message')
 							}
 						} else {
-							logger.info({ attrs, key }, 'will not send message again, as sent too many times')
+							logger.warn({ attrs, key }, 'will not send message again, as sent too many times')
 						}
 					}
 				})
@@ -894,14 +895,15 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 									prekeyCircuitBreaker.recordSuccess()
 
 									const cbStats = prekeyCircuitBreaker.getStats()
-									logger.info(
+									logger.warn(
 										{
+											component: 'CircuitBreaker',
 											msgId,
 											retryCount,
 											circuitBreakerState: cbStats.state,
 											cbFailures: cbStats.failures
 										},
-										'Message retry successful - Circuit Breaker healthy'
+										'✅ Message retry successful - Circuit Breaker healthy'
 									)
 
 									if (retryRequestDelayMs) {
@@ -1085,7 +1087,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		// // it means -- the message hasn't reached all devices yet
 		// // we'll retry sending the message here
 		// if(attrs.phash) {
-		// 	logger.info({ attrs }, 'received phash in ack, resending message...')
+		// 	logger.warn({ attrs }, 'received phash in ack, resending message...')
 		// 	const msg = await getMessage(key)
 		// 	if(msg) {
 		// 		await relayMessage(key.remoteJid!, msg, { messageId: key.id!, useUserDevicesCache: false })
@@ -1201,7 +1203,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		const [child] = getAllBinaryNodeChildren(node)
 		const author = node.attrs.participant
 
-		logger.info({ from, child }, 'got newsletter notification')
+		logger.warn({ from, child }, 'got newsletter notification')
 
 		switch (child.tag) {
 			case 'reaction':
@@ -1273,7 +1275,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 							messageTimestamp: +child.attrs.t
 						})
 						await upsertMessage(fullMessage, 'append')
-						logger.info('Processed plaintext newsletter message')
+						logger.warn('Processed plaintext newsletter message')
 					} catch (error) {
 						logger.error({ error }, 'Failed to decode plaintext newsletter message')
 					}
@@ -1311,7 +1313,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 			return
 		}
 
-		logger.info({ operation, updates }, 'got mex newsletter notification')
+		logger.warn({ operation, updates }, 'got mex newsletter notification')
 
 		switch (operation) {
 			case 'NotificationNewsletterUpdate':
@@ -1342,7 +1344,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 				break
 
 			default:
-				logger.info({ operation, data }, 'Unhandled mex newsletter notification')
+				logger.warn({ operation, data }, 'Unhandled mex newsletter notification')
 				break
 		}
 	}
