@@ -90,6 +90,16 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 	/** Circuit breaker to prevent PreKey error loops */
 	const prekeyCircuitBreaker = createPreKeyCircuitBreaker(logger)
 
+	logger.info(
+		{
+			failureThreshold: 5,
+			failureWindow: '60s',
+			openTimeout: '30s',
+			successThreshold: 2
+		},
+		'Circuit Breaker initialized for PreKey error protection'
+	)
+
 	const msgRetryCache =
 		config.msgRetryCounterCache ||
 		new NodeCache({
@@ -882,6 +892,17 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 
 									// Record success in circuit breaker
 									prekeyCircuitBreaker.recordSuccess()
+
+									const cbStats = prekeyCircuitBreaker.getStats()
+									logger.info(
+										{
+											msgId,
+											retryCount,
+											circuitBreakerState: cbStats.state,
+											cbFailures: cbStats.failures
+										},
+										'Message retry successful - Circuit Breaker healthy'
+									)
 
 									if (retryRequestDelayMs) {
 										await delay(retryRequestDelayMs)
