@@ -34,6 +34,7 @@ import {
 	extractSyncdPatches,
 	generateProfilePicture,
 	getHistoryMsg,
+	logMessage,
 	newLTHashState,
 	processSyncAction
 } from '../Utils'
@@ -930,6 +931,12 @@ export const makeChatsSocket = (config: SocketConfig) => {
 
 	const upsertMessage = ev.createBufferedFunction(async (msg: WAMessage, type: MessageUpsertType) => {
 		ev.emit('messages.upsert', { messages: [msg], type })
+
+		// Log received messages (controlled by BAILEYS_LOG environment variable)
+		if (!msg.key.fromMe) {
+			const from = msg.key.participant || msg.key.remoteJid || undefined
+			logMessage('received', { from })
+		}
 
 		if (!!msg.pushName) {
 			let jid = msg.key.fromMe ? authState.creds.me!.id : msg.key.participant || msg.key.remoteJid
