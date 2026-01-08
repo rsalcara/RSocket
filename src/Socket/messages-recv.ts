@@ -20,6 +20,7 @@ import {
 import {
 	aesDecryptCTR,
 	aesEncryptGCM,
+	baileysLog,
 	cleanMessage,
 	createPreKeyCircuitBreaker,
 	Curve,
@@ -90,8 +91,8 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 	/** Circuit breaker to prevent PreKey error loops */
 	const prekeyCircuitBreaker = createPreKeyCircuitBreaker(logger)
 
-	// Force log to console to ensure visibility in zpro-backend
-	console.log('[BAILEYS] 🔧 Circuit Breaker initialized - Threshold: 5 failures/60s, Timeout: 30s')
+	// Log initialization (controlled by BAILEYS_LOG environment variable)
+	baileysLog('🔧 Circuit Breaker initialized - Threshold: 5 failures/60s, Timeout: 30s')
 
 	logger.warn(
 		{
@@ -860,6 +861,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 								// Check circuit breaker before attempting retry
 								if (!prekeyCircuitBreaker.canExecute()) {
 									const stats = prekeyCircuitBreaker.getStats()
+									baileysLog(`🔴 Circuit Breaker OPEN - Blocking retry. State: ${stats.state}, Wait: ${Math.round(stats.timeUntilHalfOpen/1000)}s`)
 									logger.warn(
 										{
 											msgId: msg.key.id,
@@ -868,7 +870,6 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 										},
 										'Circuit breaker is open - skipping retry to prevent loop'
 									)
-								console.log("[BAILEYS] 🔴 Circuit Breaker OPEN - Blocking retry. State: " + stats.state + ", Wait: " + Math.round(stats.timeUntilHalfOpen/1000) + "s")
 									return
 								}
 
@@ -900,8 +901,8 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 
 									const cbStats = prekeyCircuitBreaker.getStats()
 
-									// Force log to console to ensure visibility
-									console.log(`[BAILEYS] ✅ Message retry successful - CB State: ${cbStats.state}, Failures: ${cbStats.failures}, RetryCount: ${retryCount}`)
+									// Log retry success (controlled by BAILEYS_LOG environment variable)
+									baileysLog(`✅ Message retry successful - CB State: ${cbStats.state}, Failures: ${cbStats.failures}, RetryCount: ${retryCount}`)
 									logger.warn(
 										{
 											component: 'CircuitBreaker',

@@ -26,6 +26,7 @@ import {
 	getStatusCodeForMediaRetry,
 	getUrlFromDirectPath,
 	getWAUploadToServer,
+	logMessage,
 	normalizeMessageContent,
 	parseAndInjectE2ESessions,
 	unixTimestampSeconds,
@@ -753,6 +754,9 @@ const lidCache = new NodeCache({
 
 			await sendNode(stanza)
 		})
+
+		// Log message sent (controlled by BAILEYS_LOG environment variable)
+		logMessage('sent', { messageId: msgId, to: jid })
 
 		return msgId
 	}

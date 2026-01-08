@@ -26,6 +26,10 @@ import {
 	getErrorCodeFromStreamError,
 	getNextPreKeysNode,
 	getPlatformId,
+	logAuth,
+	logConnection,
+	logPreKeys,
+	logQRGenerated,
 	makeEventBuffer,
 	makeNoiseHandler,
 	promiseTimeout
@@ -282,6 +286,7 @@ export const makeSocket = (config: SocketConfig) => {
 			ev.emit('creds.update', update)
 
 			logger.info({ count }, 'uploaded pre-keys')
+			logPreKeys('uploaded', count)
 		})
 	}
 
@@ -289,6 +294,7 @@ export const makeSocket = (config: SocketConfig) => {
 		const preKeyCount = await getAvailablePreKeysOnServer()
 		logger.info(`${preKeyCount} pre-keys found on server`)
 		if (preKeyCount <= MIN_PREKEY_COUNT) {
+			logPreKeys('low', preKeyCount)
 			await uploadPreKeys()
 		}
 	}
@@ -598,6 +604,7 @@ export const makeSocket = (config: SocketConfig) => {
 			const qr = [ref, noiseKeyB64, identityKeyB64, advB64].join(',')
 
 			ev.emit('connection.update', { qr })
+			logQRGenerated()
 
 			qrTimer = setTimeout(genPairQR, qrMs)
 			qrMs = qrTimeout || 20_000 // shorter subsequent qrs
@@ -618,6 +625,7 @@ export const makeSocket = (config: SocketConfig) => {
 			)
 
 			ev.emit('creds.update', updatedCreds)
+			logAuth('saved')
 			ev.emit('connection.update', { isNewLogin: true, qr: undefined })
 
 			await sendNode(reply)
@@ -632,11 +640,13 @@ export const makeSocket = (config: SocketConfig) => {
 		await sendPassiveIq('active')
 
 		logger.info('opened connection to WA')
+		logAuth('success')
 		clearTimeout(qrTimer) // will never happen in all likelyhood -- but just in case WA sends success on first try
 
 		ev.emit('creds.update', { me: { ...authState.creds.me!, lid: node.attrs.lid } })
 
 		ev.emit('connection.update', { connection: 'open' })
+		logConnection('open')
 	})
 
 	ws.on('CB:stream:error', (node: BinaryNode) => {
