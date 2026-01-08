@@ -21,6 +21,7 @@ import {
 	aesDecryptCTR,
 	aesEncryptGCM,
 	cleanMessage,
+	createPreKeyCircuitBreaker,
 	Curve,
 	decodeMediaRetryNode,
 	decodeMessageNode,
@@ -85,6 +86,9 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 
 	/** this mutex ensures that each retryRequest will wait for the previous one to finish */
 	const retryMutex = makeMutex()
+
+	/** Circuit breaker to prevent PreKey error loops */
+	const prekeyCircuitBreaker = createPreKeyCircuitBreaker(logger)
 
 	const msgRetryCache =
 		config.msgRetryCounterCache ||
@@ -839,10 +843,57 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 									return
 								}
 
+								// Check circuit breaker before attempting retry
+								if (!prekeyCircuitBreaker.canExecute()) {
+									const stats = prekeyCircuitBreaker.getStats()
+									logger.warn(
+										{
+											msgId: msg.key.id,
+											circuitState: stats.state,
+											timeUntilHalfOpen: stats.timeUntilHalfOpen
+										},
+										'Circuit breaker is open - skipping retry to prevent loop'
+									)
+									return
+								}
+
 								const encNode = getBinaryNodeChild(node, 'enc')
-								await sendRetryRequest(node, true)
-								if (retryRequestDelayMs) {
-									await delay(retryRequestDelayMs)
+
+								try {
+									// Get current retry count for exponential backoff
+									const msgKey = msg.key
+									const msgId = msgKey.id!
+									const key = `${msgId}:${msgKey?.participant}`
+									const retryCount = msgRetryCache.get<number>(key) || 0
+
+									// Exponential backoff: 1s, 2s, 5s, 10s, 20s
+									const backoffDelays = [1000, 2000, 5000, 10000, 20000]
+									const backoffDelay = backoffDelays[Math.min(retryCount, backoffDelays.length - 1)]
+
+									if (retryCount > 0) {
+										logger.debug(
+											{ msgId, retryCount, backoffDelay },
+											'Applying exponential backoff before retry'
+										)
+										await delay(backoffDelay)
+									}
+
+									await sendRetryRequest(node, true)
+
+									// Record success in circuit breaker
+									prekeyCircuitBreaker.recordSuccess()
+
+									if (retryRequestDelayMs) {
+										await delay(retryRequestDelayMs)
+									}
+								} catch (err) {
+									// Record failure in circuit breaker
+									logger.error(
+										{ msgId: msg.key.id, error: err.message },
+										'Retry request failed'
+									)
+									prekeyCircuitBreaker.recordFailure(err)
+									throw err
 								}
 							} else {
 								logger.debug({ node }, 'connection closed, ignoring retry req')
