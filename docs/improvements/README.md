@@ -33,11 +33,35 @@ Esta pasta contém a documentação de todas as melhorias e correções implemen
 
 ---
 
+#### 2. **Correção de Vazamento de Memória em WebSocket Listeners** 🔴 CRÍTICO
+- **Arquivos**:
+  - `src/Socket/Client/websocket.ts`
+  - `src/Socket/Client/types.ts`
+- **Status**: ✅ Implementado
+- **Documentação**:
+  - [WEBSOCKET_LISTENER_LEAK.md](./WEBSOCKET_LISTENER_LEAK.md) - Documentação completa
+
+**Resumo da solução:**
+- ✅ Removido `setMaxListeners(0)` (ilimitado → 15 listeners no WebSocket)
+- ✅ Removido `setMaxListeners(0)` (ilimitado → 30 listeners no AbstractSocketClient)
+- ✅ Implementado Map de referências para cleanup preciso
+- ✅ Cleanup completo de listeners no método close()
+- ✅ Type safety com WebSocketEventType
+- ✅ Documentação detalhada e testes recomendados
+
+**Proteções implementadas:**
+1. Limite razoável de listeners (detecta vazamentos)
+2. Armazenamento de referências de listeners
+3. Remoção precisa de listeners no close()
+4. Safety net com removeAllListeners()
+5. Limpeza do Map de referências
+
+---
+
 ## 🎯 Próximas Melhorias (Planejadas)
 
 ### Categoria 1: Problemas Críticos de Robustez e Estabilidade
 
-- [ ] 2. Circuit breaker para PreKeys
 - [ ] 3. Retry logic em decrypt failures
 - [ ] 4. Session recovery após falhas
 - [ ] 5. Proteção contra message flooding
@@ -77,6 +101,15 @@ Esta pasta contém a documentação de todas as melhorias e correções implemen
 ## 📝 Changelog
 
 ### 2026-01-11
+
+#### Segunda Correção Crítica
+- ✅ Implementada correção de vazamento de memória em WebSocket Listeners
+- ✅ Removido `setMaxListeners(0)` perigoso em 2 arquivos
+- ✅ Implementado gerenciamento de referências de listeners
+- ✅ Cleanup completo no método close()
+- ✅ Documentação completa com testes e melhores práticas
+
+#### Primeira Correção Crítica
 - ✅ Implementada correção de vazamento de memória no Event Buffer
 - ✅ Adicionado sistema completo de logging (Standard + BAILEYS_LOG)
 - ✅ Criada documentação detalhada
