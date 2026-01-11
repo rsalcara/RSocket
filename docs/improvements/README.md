@@ -37,17 +37,21 @@ Esta pasta contém a documentação de todas as melhorias e correções implemen
 - **Arquivos**:
   - `src/Socket/Client/websocket.ts`
   - `src/Socket/Client/types.ts`
-- **Status**: ✅ Implementado
+  - `src/Types/Socket.ts`
+- **Status**: ✅ Implementado e Configurável
 - **Documentação**:
   - [WEBSOCKET_LISTENER_LEAK.md](./WEBSOCKET_LISTENER_LEAK.md) - Documentação completa
+  - [LISTENER_LIMITS_CONFIG.md](./LISTENER_LIMITS_CONFIG.md) - Guia de configuração
 
 **Resumo da solução:**
 - ✅ Removido `setMaxListeners(0)` (ilimitado → 15 listeners no WebSocket)
 - ✅ Removido `setMaxListeners(0)` (ilimitado → 30 listeners no AbstractSocketClient)
+- ✅ **Limites agora configuráveis** via `SocketConfig` (opcional)
+- ✅ **Warnings automáticos** se configurado como unlimited (0)
 - ✅ Implementado Map de referências para cleanup preciso
 - ✅ Cleanup completo de listeners no método close()
 - ✅ Type safety com WebSocketEventType
-- ✅ Documentação detalhada e testes recomendados
+- ✅ Documentação detalhada, testes e guia de configuração
 
 **Proteções implementadas:**
 1. Limite razoável de listeners (detecta vazamentos)
@@ -55,6 +59,8 @@ Esta pasta contém a documentação de todas as melhorias e correções implemen
 3. Remoção precisa de listeners no close()
 4. Safety net com removeAllListeners()
 5. Limpeza do Map de referências
+6. **Configuração flexível** para casos de uso avançados
+7. **Avisos automáticos** para configurações perigosas
 
 ---
 
@@ -102,7 +108,14 @@ Esta pasta contém a documentação de todas as melhorias e correções implemen
 
 ### 2026-01-11
 
-#### Segunda Correção Crítica
+#### Terceira Atualização - Limites Configuráveis
+- ✅ Adicionado suporte para configuração de limites via `SocketConfig`
+- ✅ Warnings automáticos para configurações perigosas (setMaxListeners(0))
+- ✅ Documentação completa de configuração (LISTENER_LIMITS_CONFIG.md)
+- ✅ Flexibilidade para casos de uso avançados
+- ✅ Mantém valores padrão seguros
+
+#### Segunda Correção Crítica - WebSocket Listeners
 - ✅ Implementada correção de vazamento de memória em WebSocket Listeners
 - ✅ Removido `setMaxListeners(0)` perigoso em 2 arquivos
 - ✅ Implementado gerenciamento de referências de listeners

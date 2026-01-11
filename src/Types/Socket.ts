@@ -119,6 +119,22 @@ export type SocketConfig = {
 		snapshot: boolean
 	}
 
+	/**
+	 * Maximum listeners for WebSocket internal events
+	 * @default 15
+	 * Recommended: 15-30 depending on external handlers
+	 * Set to 0 for unlimited (NOT RECOMMENDED - causes memory leaks)
+	 */
+	maxWebSocketListeners?: number
+
+	/**
+	 * Maximum listeners for SocketClient EventEmitter
+	 * @default 30
+	 * Recommended: 30-50 depending on application complexity
+	 * Set to 0 for unlimited (NOT RECOMMENDED - causes memory leaks)
+	 */
+	maxSocketClientListeners?: number
+
 	/** options for axios */
 	options: AxiosRequestConfig<{}>
 	/**

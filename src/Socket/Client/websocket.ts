@@ -52,14 +52,26 @@ export class WebSocketClient extends AbstractSocketClient {
 		})
 
 		/**
-		 * Set reasonable max listeners limit:
+		 * Set reasonable max listeners limit for WebSocket internal events
+		 *
+		 * Default calculation (15 listeners):
 		 * - 8 base WebSocket events (close, error, upgrade, message, open, ping, pong, unexpected-response)
 		 * - 7 additional slots for dynamic listeners (user-added handlers)
-		 * Total: 15 listeners
 		 *
 		 * CRITICAL: Never use setMaxListeners(0) as it disables warnings and allows unbounded growth
+		 *
+		 * Override via config.maxWebSocketListeners if needed for your use case
 		 */
-		this.socket.setMaxListeners(15)
+		const maxWebSocketListeners = this.config.maxWebSocketListeners ?? 15
+
+		if (maxWebSocketListeners === 0) {
+			this.config.logger?.warn(
+				{ maxWebSocketListeners },
+				'⚠️  WARNING: WebSocket setMaxListeners(0) allows UNLIMITED listeners - potential memory leak! Set a reasonable limit instead.'
+			)
+		}
+
+		this.socket.setMaxListeners(maxWebSocketListeners)
 
 		// Define all WebSocket events that need to be forwarded
 		const events: WebSocketEventType[] = [
