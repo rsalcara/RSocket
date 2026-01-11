@@ -1,4 +1,5 @@
 import type { Logger } from 'pino'
+import { isBaileysLogEnabled } from './baileys-logger'
 
 export type CircuitBreakerState = 'CLOSED' | 'OPEN' | 'HALF_OPEN'
 
@@ -86,6 +87,11 @@ export class CircuitBreaker {
 				'Circuit breaker success recorded'
 			)
 
+			// BAILEYS_LOG
+			if (isBaileysLogEnabled()) {
+				console.log(`[BAILEYS] ✅ Circuit Breaker success: ${this.successes}/${this.config.successThreshold}`)
+			}
+
 			if(this.successes >= this.config.successThreshold) {
 				this.transitionTo('CLOSED')
 			}
@@ -118,6 +124,11 @@ export class CircuitBreaker {
 			{ failureCount: this.failures.length, error: error.message },
 			'Circuit breaker failure recorded'
 		)
+
+		// BAILEYS_LOG
+		if (isBaileysLogEnabled()) {
+			console.log(`[BAILEYS] ❌ Circuit Breaker failure: ${this.failures.length}/${this.config.failureThreshold} - ${error.message}`)
+		}
 
 		if(this.state === 'HALF_OPEN') {
 			// In half-open, any failure reopens the circuit
@@ -189,6 +200,13 @@ export class CircuitBreaker {
 				},
 				'Circuit breaker opened - blocking requests'
 			)
+			// BAILEYS_LOG
+			if (isBaileysLogEnabled()) {
+				console.log(`[BAILEYS] 🔴 Circuit Breaker OPENED - Blocking requests`, {
+					failures: this.failures.length,
+					waitTime: `${this.config.openTimeout / 1000}s`
+				})
+			}
 			break
 		case 'HALF_OPEN':
 			this.successes = 0
@@ -196,6 +214,10 @@ export class CircuitBreaker {
 				{ oldState },
 				'Circuit breaker half-open - testing recovery'
 			)
+			// BAILEYS_LOG
+			if (isBaileysLogEnabled()) {
+				console.log(`[BAILEYS] 🟡 Circuit Breaker HALF-OPEN - Testing recovery`)
+			}
 			break
 		case 'CLOSED':
 			this.failures = []
@@ -205,6 +227,10 @@ export class CircuitBreaker {
 				{ oldState },
 				'Circuit breaker closed - normal operation resumed'
 			)
+			// BAILEYS_LOG
+			if (isBaileysLogEnabled()) {
+				console.log(`[BAILEYS] 🟢 Circuit Breaker CLOSED - Normal operation resumed`)
+			}
 			break
 		}
 	}
