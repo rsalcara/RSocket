@@ -105,7 +105,11 @@ export function logMessage(event: 'sent' | 'received' | 'decrypt_failed', detail
 		console.log(`[BAILEYS] 📤 Message sent: ${details.messageId} → ${details.to}`)
 		break
 	case 'received':
-		console.log(`[BAILEYS] 📥 Message received from ${details.from}`)
+		if (details.messageId) {
+			console.log(`[BAILEYS] 📥 Message received: ${details.messageId} ← ${details.from}`)
+		} else {
+			console.log(`[BAILEYS] 📥 Message received from ${details.from}`)
+		}
 		break
 	case 'decrypt_failed':
 		console.log(`[BAILEYS] ⚠️  Message decrypt failed - Retry ${details.retryCount}/${details.maxRetries}`)

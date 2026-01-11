@@ -519,6 +519,14 @@ function append<E extends BufferableEvent>(
 						type: type === 'notify' || data.messageUpserts[key]?.type === 'notify' ? 'notify' : type
 					}
 				}
+
+				// Log all messages buffered (BAILEYS_LOG)
+				logger.trace({
+					messageId: key,
+					fromMe: message.key.fromMe,
+					remoteJid: message.key.remoteJid,
+					type
+				}, 'message buffered')
 			}
 
 			break

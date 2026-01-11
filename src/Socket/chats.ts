@@ -935,7 +935,10 @@ export const makeChatsSocket = (config: SocketConfig) => {
 		// Log received messages (controlled by BAILEYS_LOG environment variable)
 		if (!msg.key.fromMe) {
 			const from = msg.key.participant || msg.key.remoteJid || undefined
-			logMessage('received', { from })
+			logMessage('received', {
+				from,
+				messageId: msg.key.id || undefined
+			})
 		}
 
 		if (!!msg.pushName) {
