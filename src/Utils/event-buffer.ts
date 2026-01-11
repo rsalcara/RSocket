@@ -15,6 +15,7 @@ import { trimUndefined } from './generics'
 import { ILogger } from './logger'
 import { updateMessageWithReaction, updateMessageWithReceipt } from './messages'
 import { isRealMessage, shouldIncrementChatUnread } from './process-message'
+import { logEventBuffer, logBufferMetrics } from './baileys-logger'
 
 const BUFFERABLE_EVENT = [
 	'messaging-history.set',
@@ -69,12 +70,29 @@ type BaileysBufferableEventEmitter = BaileysEventEmitter & {
  * making the data processing more efficient.
  * @param ev the baileys event emitter
  */
+/**
+ * Buffer configuration to prevent memory leaks
+ * These values can be adjusted based on your application's needs
+ */
+export const BUFFER_CONFIG = {
+	MAX_HISTORY_CACHE_SIZE: 10000, // Maximum items in history cache before cleanup
+	MAX_BUFFER_ITEMS: 1000, // Maximum items per buffer before force flush
+	AUTO_FLUSH_TIMEOUT_MS: 5000, // Auto-flush after 5 seconds of inactivity
+	ENABLE_AUTO_FLUSH: true // Enable automatic timeout-based flushing
+}
+
 export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter => {
 	const ev = new EventEmitter()
 	const historyCache = new Set<string>()
 
 	let data = makeBufferData()
 	let buffersInProgress = 0
+	let autoFlushTimer: NodeJS.Timeout | null = null
+	let bufferMetrics = {
+		itemsBuffered: 0,
+		flushCount: 0,
+		historyCacheSize: 0
+	}
 
 	// take the generic event and fire it as a baileys event
 	ev.on('event', (map: BaileysEventData) => {
@@ -85,6 +103,25 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 
 	function buffer() {
 		buffersInProgress += 1
+
+		// Log buffer start (only on first buffer)
+		if (buffersInProgress === 1) {
+			logger.trace({ buffersInProgress }, 'event buffering started')
+			logEventBuffer('buffer_start')
+		}
+
+		// Start auto-flush timer when buffering begins
+		if (BUFFER_CONFIG.ENABLE_AUTO_FLUSH && !autoFlushTimer && buffersInProgress === 1) {
+			autoFlushTimer = setTimeout(() => {
+				logger.warn({
+					timeoutMs: BUFFER_CONFIG.AUTO_FLUSH_TIMEOUT_MS,
+					itemsBuffered: bufferMetrics.itemsBuffered
+				}, 'auto-flushing buffer due to timeout')
+				logEventBuffer('buffer_timeout')
+				flush(true)
+				autoFlushTimer = null
+			}, BUFFER_CONFIG.AUTO_FLUSH_TIMEOUT_MS)
+		}
 	}
 
 	function flush(force = false) {
@@ -101,6 +138,12 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 			if (buffersInProgress) {
 				return false
 			}
+		}
+
+		// Clear auto-flush timer
+		if (autoFlushTimer) {
+			clearTimeout(autoFlushTimer)
+			autoFlushTimer = null
 		}
 
 		const newData = makeBufferData()
@@ -121,10 +164,67 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 		}
 
 		data = newData
+		bufferMetrics.flushCount += 1
+		bufferMetrics.itemsBuffered = 0
 
-		logger.trace({ conditionalChatUpdatesLeft }, 'released buffered events')
+		// Clean history cache if it grows too large (LRU-like behavior)
+		cleanHistoryCache()
+
+		// Standard logger trace
+		logger.trace({
+			conditionalChatUpdatesLeft,
+			historyCacheSize: historyCache.size,
+			flushCount: bufferMetrics.flushCount,
+			forced: force
+		}, 'released buffered events')
+
+		// BAILEYS_LOG logging
+		logEventBuffer('buffer_flush', {
+			flushCount: bufferMetrics.flushCount,
+			historyCacheSize: historyCache.size
+		})
+
+		// Log metrics periodically (every 10 flushes)
+		if (bufferMetrics.flushCount % 10 === 0) {
+			logBufferMetrics({
+				itemsBuffered: bufferMetrics.itemsBuffered,
+				flushCount: bufferMetrics.flushCount,
+				historyCacheSize: bufferMetrics.historyCacheSize,
+				buffersInProgress
+			})
+		}
+
+		// Reset buffers in progress if forced
+		if (force) {
+			buffersInProgress = 0
+		}
 
 		return true
+	}
+
+	function cleanHistoryCache() {
+		if (historyCache.size > BUFFER_CONFIG.MAX_HISTORY_CACHE_SIZE) {
+			// Convert to array, remove oldest 20%, convert back to Set
+			const cacheArray = Array.from(historyCache)
+			const itemsToRemove = Math.floor(cacheArray.length * 0.2)
+			const newCache = cacheArray.slice(itemsToRemove)
+			historyCache.clear()
+			newCache.forEach(item => historyCache.add(item))
+
+			// Standard logger debug
+			logger.debug({
+				removed: itemsToRemove,
+				remaining: historyCache.size,
+				maxSize: BUFFER_CONFIG.MAX_HISTORY_CACHE_SIZE
+			}, 'cleaned history cache')
+
+			// BAILEYS_LOG logging
+			logEventBuffer('cache_cleanup', {
+				removed: itemsToRemove,
+				remaining: historyCache.size
+			})
+		}
+		bufferMetrics.historyCacheSize = historyCache.size
 	}
 
 	return {
@@ -140,9 +240,36 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 		},
 		emit<T extends BaileysEvent>(event: BaileysEvent, evData: BaileysEventMap[T]) {
 			if (buffersInProgress && BUFFERABLE_EVENT_SET.has(event)) {
-				//append(data, historyCache, event as BufferableEvent, evData, logger)
-				//return true
-				/// Vazamento de memória detectado aqui, desabilitado momentaneamente para testes.
+				// Check if buffer is getting too large
+				bufferMetrics.itemsBuffered += 1
+
+				if (bufferMetrics.itemsBuffered > BUFFER_CONFIG.MAX_BUFFER_ITEMS) {
+					// Standard logger warn
+					logger.warn({
+						itemsBuffered: bufferMetrics.itemsBuffered,
+						maxItems: BUFFER_CONFIG.MAX_BUFFER_ITEMS,
+						event
+					}, 'buffer overflow detected, force flushing')
+
+					// BAILEYS_LOG logging
+					logEventBuffer('buffer_overflow', {
+						itemsBuffered: bufferMetrics.itemsBuffered,
+						maxItems: BUFFER_CONFIG.MAX_BUFFER_ITEMS
+					})
+
+					flush(true)
+				}
+
+				// Log every 100 buffered items for monitoring
+				if (bufferMetrics.itemsBuffered % 100 === 0) {
+					logger.debug({
+						itemsBuffered: bufferMetrics.itemsBuffered,
+						event
+					}, 'buffering events')
+				}
+
+				append(data, historyCache, event as BufferableEvent, evData, logger)
+				return true
 			}
 
 			return ev.emit('event', { [event]: evData })

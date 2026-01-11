@@ -161,3 +161,58 @@ export function logInfo(message: string, data?: any): void {
 		console.log(`[BAILEYS] ℹ️  ${message}`)
 	}
 }
+
+/**
+ * Log event buffer operations
+ */
+export function logEventBuffer(event: 'buffer_start' | 'buffer_flush' | 'buffer_overflow' | 'buffer_timeout' | 'cache_cleanup', details?: {
+	itemsBuffered?: number
+	flushCount?: number
+	historyCacheSize?: number
+	maxItems?: number
+	removed?: number
+	remaining?: number
+	autoFlushed?: boolean
+}): void {
+	if (!isBaileysLogEnabled()) return
+
+	switch (event) {
+	case 'buffer_start':
+		console.log(`[BAILEYS] 📦 Event buffering started`)
+		break
+	case 'buffer_flush':
+		console.log(`[BAILEYS] 🔄 Event buffer flushed`, {
+			flushCount: details?.flushCount,
+			historyCacheSize: details?.historyCacheSize
+		})
+		break
+	case 'buffer_overflow':
+		console.log(`[BAILEYS] ⚠️  Buffer overflow detected - Force flushing`, {
+			itemsBuffered: details?.itemsBuffered,
+			maxItems: details?.maxItems
+		})
+		break
+	case 'buffer_timeout':
+		console.log(`[BAILEYS] ⏰ Buffer auto-flush triggered by timeout`)
+		break
+	case 'cache_cleanup':
+		console.log(`[BAILEYS] 🧹 History cache cleaned`, {
+			removed: details?.removed,
+			remaining: details?.remaining
+		})
+		break
+	}
+}
+
+/**
+ * Log event buffer metrics (periodic monitoring)
+ */
+export function logBufferMetrics(metrics: {
+	itemsBuffered: number
+	flushCount: number
+	historyCacheSize: number
+	buffersInProgress: number
+}): void {
+	if (!isBaileysLogEnabled()) return
+	console.log(`[BAILEYS] 📊 Buffer Metrics`, metrics)
+}
