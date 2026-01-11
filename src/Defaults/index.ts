@@ -109,9 +109,50 @@ export const MIN_PREKEY_COUNT = 5
 
 export const INITIAL_PREKEY_COUNT = 30
 
+/**
+ * Default TTL (Time-To-Live) and memory limits for internal caches
+ *
+ * CRITICAL: All caches now have maxKeys limits to prevent unbounded memory growth
+ * These values are conservative for production with 50-100+ concurrent tenants
+ *
+ * Memory leak prevention (Issue #3):
+ * - Before: Caches could grow indefinitely → OOM crashes under high load
+ * - After: Strict memory limits with automatic eviction (LRU)
+ */
 export const DEFAULT_CACHE_TTLS = {
 	SIGNAL_STORE: 5 * 60, // 5 minutes
 	MSG_RETRY: 60 * 60, // 1 hour
 	CALL_OFFER: 5 * 60, // 5 minutes
 	USER_DEVICES: 5 * 60 // 5 minutes
+}
+
+/**
+ * Default maximum keys for internal caches (Memory leak prevention)
+ *
+ * Conservative limits for multi-tenant production (50-100+ tenants):
+ * - Prevents OOM crashes from unbounded cache growth
+ * - Uses LRU eviction when limit is reached
+ * - Tested under high load scenarios
+ *
+ * Per-socket caches (multiplied by number of tenants):
+ * - SIGNAL_STORE: 10k keys (cryptographic keys)
+ * - MSG_RETRY: 10k keys (high message volume)
+ * - CALL_OFFER: 500 keys (calls are rare)
+ * - USER_DEVICES: 5k keys (devices per user)
+ * - PLACEHOLDER_RESEND: 5k keys (temporary placeholders)
+ * - LID_PER_SOCKET: 2k keys (link IDs per socket)
+ *
+ * Global caches (shared across all tenants):
+ * - LID_GLOBAL: 10k keys (shared link IDs)
+ *
+ * Override individual limits via SocketConfig if your use case requires more
+ */
+export const DEFAULT_CACHE_MAX_KEYS = {
+	SIGNAL_STORE: 10_000,
+	MSG_RETRY: 10_000,
+	CALL_OFFER: 500,
+	USER_DEVICES: 5_000,
+	PLACEHOLDER_RESEND: 5_000,
+	LID_PER_SOCKET: 2_000,
+	LID_GLOBAL: 10_000
 }

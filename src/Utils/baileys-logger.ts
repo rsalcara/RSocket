@@ -220,3 +220,81 @@ export function logBufferMetrics(metrics: {
 	if (!isBaileysLogEnabled()) return
 	console.log(`[BAILEYS] 📊 Buffer Metrics`, metrics)
 }
+
+/**
+ * Log cache memory operations and metrics
+ *
+ * Memory leak prevention (Issue #3):
+ * Monitors cache memory usage and warns when approaching limits
+ */
+export function logCacheMemory(event: 'init' | 'limit_reached' | 'eviction' | 'metrics', details: {
+	cacheName: string
+	size?: number
+	maxKeys?: number
+	evictedKeys?: number
+	utilizationPct?: number
+	ttl?: number
+}): void {
+	if (!isBaileysLogEnabled()) return
+
+	const { cacheName, size, maxKeys, evictedKeys, utilizationPct, ttl } = details
+
+	switch (event) {
+	case 'init':
+		console.log(`[BAILEYS] 💾 Cache initialized: ${cacheName}`, {
+			maxKeys,
+			ttl: ttl ? `${ttl}s` : 'N/A'
+		})
+		break
+	case 'limit_reached':
+		console.log(`[BAILEYS] ⚠️  Cache limit reached: ${cacheName}`, {
+			size,
+			maxKeys,
+			utilizationPct: `${utilizationPct}%`
+		})
+		break
+	case 'eviction':
+		console.log(`[BAILEYS] 🗑️  Cache eviction: ${cacheName}`, {
+			evictedKeys,
+			remaining: size
+		})
+		break
+	case 'metrics':
+		console.log(`[BAILEYS] 📊 Cache metrics: ${cacheName}`, {
+			size,
+			maxKeys,
+			utilizationPct: `${utilizationPct?.toFixed(1)}%`
+		})
+		break
+	}
+}
+
+/**
+ * Log aggregate cache metrics for all caches in a socket
+ */
+export function logSocketCacheMetrics(metrics: {
+	userDevicesCache: { size: number; maxKeys: number }
+	lidCache: { size: number; maxKeys: number }
+	msgRetryCache: { size: number; maxKeys: number }
+	callOfferCache: { size: number; maxKeys: number }
+	placeholderResendCache: { size: number; maxKeys: number }
+	signalStore: { size: number; maxKeys: number }
+	totalKeys: number
+	totalMaxKeys: number
+	avgUtilization: number
+}): void {
+	if (!isBaileysLogEnabled()) return
+	console.log(`[BAILEYS] 📊 Socket Cache Summary`, {
+		totalKeys: metrics.totalKeys,
+		totalMaxKeys: metrics.totalMaxKeys,
+		avgUtilization: `${metrics.avgUtilization.toFixed(1)}%`,
+		caches: {
+			userDevices: `${metrics.userDevicesCache.size}/${metrics.userDevicesCache.maxKeys}`,
+			lid: `${metrics.lidCache.size}/${metrics.lidCache.maxKeys}`,
+			msgRetry: `${metrics.msgRetryCache.size}/${metrics.msgRetryCache.maxKeys}`,
+			callOffer: `${metrics.callOfferCache.size}/${metrics.callOfferCache.maxKeys}`,
+			placeholder: `${metrics.placeholderResendCache.size}/${metrics.placeholderResendCache.maxKeys}`,
+			signal: `${metrics.signalStore.size}/${metrics.signalStore.maxKeys}`
+		}
+	})
+}

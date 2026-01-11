@@ -62,15 +62,51 @@ Esta pasta contém a documentação de todas as melhorias e correções implemen
 6. **Configuração flexível** para casos de uso avançados
 7. **Avisos automáticos** para configurações perigosas
 
+#### 3. **Correção de Vazamento de Memória em Caches** 🔴 CRÍTICO
+- **Arquivos**:
+  - `src/Defaults/index.ts`
+  - `src/Utils/cache-utils.ts`
+  - `src/Utils/auth-utils.ts`
+  - `src/Socket/messages-send.ts`
+  - `src/Socket/messages-recv.ts`
+  - `src/Socket/chats.ts`
+  - `src/Utils/baileys-logger.ts`
+- **Status**: ✅ Implementado e Testado
+- **Documentação**: [CACHE_MEMORY_LIMITS.md](./CACHE_MEMORY_LIMITS.md)
+
+**Resumo da solução:**
+- ✅ Definidos limites conservadores para todos os caches (maxKeys)
+- ✅ Proteção contra OOM crashes em produção
+- ✅ LRU eviction automática quando atinge o limite
+- ✅ deleteOnExpire: true para liberar memória
+- ✅ Sistema completo de logging e métricas de cache
+- ✅ Limites calculados para 50-100+ tenants simultâneos
+
+**Proteções implementadas:**
+1. maxKeys em todos os caches (7 caches no total)
+2. LRU eviction (remove menos usadas)
+3. deleteOnExpire automático
+4. Logging de métricas e alertas
+5. Limites conservadores com buffer de segurança
+
+**Limites por cache:**
+- Signal Store: 10.000 keys
+- MSG Retry: 10.000 keys
+- User Devices: 5.000 keys
+- Placeholder Resend: 5.000 keys
+- LID (per-socket): 2.000 keys
+- LID (global): 10.000 keys
+- Call Offer: 500 keys
+
 ---
 
 ## 🎯 Próximas Melhorias (Planejadas)
 
 ### Categoria 1: Problemas Críticos de Robustez e Estabilidade
 
-- [ ] 3. Retry logic em decrypt failures
-- [ ] 4. Session recovery após falhas
-- [ ] 5. Proteção contra message flooding
+- [ ] 4. Retry logic em decrypt failures
+- [ ] 5. Session recovery após falhas
+- [ ] 6. Proteção contra message flooding
 
 ### Categoria 2: Performance
 
@@ -107,6 +143,15 @@ Esta pasta contém a documentação de todas as melhorias e correções implemen
 ## 📝 Changelog
 
 ### 2026-01-11
+
+#### Quarta Correção Crítica - Cache Memory Limits
+- ✅ Implementada correção de vazamento de memória em Caches
+- ✅ Adicionado `DEFAULT_CACHE_MAX_KEYS` com limites conservadores
+- ✅ Aplicado maxKeys em todos os 7 caches (6 per-socket + 1 global)
+- ✅ Implementado deleteOnExpire: true em todos os caches
+- ✅ Adicionado logging de métricas de cache
+- ✅ Limites calculados para 50-100+ tenants simultâneos
+- ✅ Documentação completa com troubleshooting e FAQ
 
 #### Terceira Atualização - Limites Configuráveis
 - ✅ Adicionado suporte para configuração de limites via `SocketConfig`

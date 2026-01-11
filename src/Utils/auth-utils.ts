@@ -1,6 +1,6 @@
 import NodeCache from '@cacheable/node-cache'
 import { randomBytes } from 'crypto'
-import { DEFAULT_CACHE_TTLS } from '../Defaults'
+import { DEFAULT_CACHE_TTLS, DEFAULT_CACHE_MAX_KEYS } from '../Defaults'
 import type {
 	AuthenticationCreds,
 	CacheStore,
@@ -29,6 +29,7 @@ export function makeCacheableSignalKeyStore(
 		_cache ||
 		new NodeCache({
 			stdTTL: DEFAULT_CACHE_TTLS.SIGNAL_STORE, // 5 minutes
+			maxKeys: DEFAULT_CACHE_MAX_KEYS.SIGNAL_STORE, // 10,000 keys (memory leak prevention)
 			useClones: false,
 			deleteOnExpire: true
 		})

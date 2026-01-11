@@ -3,7 +3,7 @@ import { Boom } from '@hapi/boom'
 import { randomBytes } from 'crypto'
 import Long = require('long')
 import { proto } from '../../WAProto'
-import { DEFAULT_CACHE_TTLS, KEY_BUNDLE_TYPE, MIN_PREKEY_COUNT } from '../Defaults'
+import { DEFAULT_CACHE_TTLS, DEFAULT_CACHE_MAX_KEYS, KEY_BUNDLE_TYPE, MIN_PREKEY_COUNT } from '../Defaults'
 import {
 	MessageReceiptType,
 	MessageRelayOptions,
@@ -110,12 +110,16 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		config.msgRetryCounterCache ||
 		new NodeCache({
 			stdTTL: DEFAULT_CACHE_TTLS.MSG_RETRY, // 1 hour
+			maxKeys: DEFAULT_CACHE_MAX_KEYS.MSG_RETRY, // 10,000 keys (memory leak prevention)
+			deleteOnExpire: true,
 			useClones: false
 		})
 	const callOfferCache =
 		config.callOfferCache ||
 		new NodeCache({
 			stdTTL: DEFAULT_CACHE_TTLS.CALL_OFFER, // 5 mins
+			maxKeys: DEFAULT_CACHE_MAX_KEYS.CALL_OFFER, // 500 keys (memory leak prevention)
+			deleteOnExpire: true,
 			useClones: false
 		})
 
@@ -123,6 +127,8 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		config.placeholderResendCache ||
 		new NodeCache({
 			stdTTL: DEFAULT_CACHE_TTLS.MSG_RETRY, // 1 hour
+			maxKeys: DEFAULT_CACHE_MAX_KEYS.PLACEHOLDER_RESEND, // 5,000 keys (memory leak prevention)
+			deleteOnExpire: true,
 			useClones: false
 		})
 

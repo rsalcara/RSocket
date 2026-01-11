@@ -1,7 +1,7 @@
 import NodeCache from '@cacheable/node-cache'
 import { Boom } from '@hapi/boom'
 import { proto } from '../../WAProto'
-import { DEFAULT_CACHE_TTLS, PROCESSABLE_HISTORY_TYPES } from '../Defaults'
+import { DEFAULT_CACHE_TTLS, DEFAULT_CACHE_MAX_KEYS, PROCESSABLE_HISTORY_TYPES } from '../Defaults'
 import {
 	ALL_WA_PATCH_NAMES,
 	BotListInfo,
@@ -75,6 +75,8 @@ export const makeChatsSocket = (config: SocketConfig) => {
 		config.placeholderResendCache ||
 		new NodeCache({
 			stdTTL: DEFAULT_CACHE_TTLS.MSG_RETRY, // 1 hour
+			maxKeys: DEFAULT_CACHE_MAX_KEYS.PLACEHOLDER_RESEND, // 5,000 keys (memory leak prevention)
+			deleteOnExpire: true,
 			useClones: false
 		})
 
