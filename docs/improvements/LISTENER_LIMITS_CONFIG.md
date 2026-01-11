@@ -16,7 +16,7 @@ Controla o número máximo de listeners no **WebSocket interno** (conexão ws co
 interface SocketConfig {
   /**
    * Maximum listeners for WebSocket internal events
-   * @default 15
+   * @default 20
    * Recommended: 15-30 depending on external handlers
    * Set to 0 for unlimited (NOT RECOMMENDED - causes memory leaks)
    */
@@ -40,7 +40,7 @@ Controla o número máximo de listeners no **AbstractSocketClient** (EventEmitte
 interface SocketConfig {
   /**
    * Maximum listeners for SocketClient EventEmitter
-   * @default 30
+   * @default 40
    * Recommended: 30-50 depending on application complexity
    * Set to 0 for unlimited (NOT RECOMMENDED - causes memory leaks)
    */

@@ -25,10 +25,11 @@ export abstract class AbstractSocketClient extends EventEmitter {
 		/**
 		 * Set reasonable max listeners limit for the EventEmitter
 		 *
-		 * Default calculation (30 listeners):
+		 * Default calculation (40 listeners):
 		 * - 8 WebSocket events forwarded from underlying socket
 		 * - ~10 Baileys internal listeners (connection, messages, etc.)
-		 * - ~12 additional slots for user-added handlers
+		 * - ~15 additional slots for user-added handlers
+		 * - ~7 buffer for multi-tenant environments
 		 *
 		 * CRITICAL: Never use setMaxListeners(0) unless you know what you're doing
 		 * - 0 = UNLIMITED listeners = guaranteed memory leak on reconnections
@@ -36,7 +37,7 @@ export abstract class AbstractSocketClient extends EventEmitter {
 		 *
 		 * Override via config.maxSocketClientListeners if needed for your use case
 		 */
-		const maxListeners = config.maxSocketClientListeners ?? 30
+		const maxListeners = config.maxSocketClientListeners ?? 40
 
 		if (maxListeners === 0) {
 			config.logger?.warn(

@@ -121,16 +121,16 @@ export type SocketConfig = {
 
 	/**
 	 * Maximum listeners for WebSocket internal events
-	 * @default 15
-	 * Recommended: 15-30 depending on external handlers
+	 * @default 20
+	 * Recommended: 20-30 for multi-tenant, 15-20 for single instance
 	 * Set to 0 for unlimited (NOT RECOMMENDED - causes memory leaks)
 	 */
 	maxWebSocketListeners?: number
 
 	/**
 	 * Maximum listeners for SocketClient EventEmitter
-	 * @default 30
-	 * Recommended: 30-50 depending on application complexity
+	 * @default 40
+	 * Recommended: 40-60 for multi-tenant, 30-40 for single instance
 	 * Set to 0 for unlimited (NOT RECOMMENDED - causes memory leaks)
 	 */
 	maxSocketClientListeners?: number
