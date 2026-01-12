@@ -40,6 +40,24 @@ Complete documentation for RBaileys - Enhanced Baileys WhatsApp library with pro
 
 ---
 
+#### [JID Normalization](JID_NORMALIZATION.md)
+**Prevent duplicate tickets with @lid and @s.whatsapp.net normalization**
+
+- Automatic JID standardization
+- Prevents duplicate contacts/tickets
+- Handles @lid, @s.whatsapp.net, @c.us formats
+- Database migration scripts
+- Zero breaking changes
+
+**Key Topics:**
+- Understanding the @lid problem
+- JID normalization functions
+- Integration with ticket systems
+- Migration guide for existing data
+- Best practices
+
+---
+
 #### [Release Process](RELEASE_PROCESS.md)
 **CI/CD validation and lib/ synchronization**
 

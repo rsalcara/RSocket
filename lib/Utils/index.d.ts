@@ -19,5 +19,6 @@ export * from './circuit-breaker';
 export * from './baileys-logger';
 export * from './retry-utils';
 export * from './trace-context';
+export * from './jid-utils';
 export { createBaileysLogger, getBaileysLogLevel, type BaileysLogger, type BaileysLoggerConfig } from './structured-logger';
 export { useStructuredLogs, getStructuredLogger, setStructuredLogger, legacyLoggerAdapter, adaptedLog, isStructuredLogger } from './logger-adapter';

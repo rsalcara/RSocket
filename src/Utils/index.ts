@@ -19,6 +19,7 @@ export * from './circuit-breaker'
 export * from './baileys-logger'
 export * from './retry-utils'
 export * from './trace-context'
+export * from './jid-utils'
 // Structured logger and adapter - explicit exports to avoid conflicts
 export {
 	createBaileysLogger,
