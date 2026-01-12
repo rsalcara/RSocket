@@ -34,7 +34,9 @@
     "postinstall": "node -e \"console.log('Using pre-built lib/ folder from repository')\"",
     "prepare": "node -e \"console.log('Skipping TypeScript compilation - using committed lib/ folder')\"",
     "release": "release-it",
-    "test": "jest"
+    "test": "jest",
+    "validate:lib-sync": "node scripts/validate-lib-sync.js",
+    "prerelease": "npm run validate:lib-sync"
   },
   "dependencies": {
     "@cacheable/node-cache": "^1.4.0",

@@ -42,5 +42,23 @@ jobs:
       - name: Install Dependencies
         run: yarn
 
+      - name: Validate lib/ sync before release
+        run: npm run validate:lib-sync
+
+      - name: Compile TypeScript to ensure lib/ is up to date
+        run: npm run build:tsc
+
+      - name: Commit lib/ changes if any (auto-sync)
+        run: |
+          if ! git diff --quiet lib/; then
+            echo "⚠️ lib/ was out of sync - compiling and committing changes"
+            git add lib/
+            git commit -m "chore: auto-sync lib/ folder with src/ before release"
+            git push
+            echo "✅ lib/ synchronized and committed"
+          else
+            echo "✅ lib/ already in sync"
+          fi
+
       - name: Release
         run: "npx release-it --increment ${{ github.event.inputs.increment }}"

@@ -44,6 +44,21 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      - name: Validate lib/ sync before release
+        run: npm run validate:lib-sync
+
+      - name: Compile TypeScript (safety check)
+        run: npm run build:tsc
+
+      - name: Verify lib/ is still in sync after compilation
+        run: |
+          if ! git diff --quiet lib/; then
+            echo "❌ ERROR: lib/ changed after compilation - this should not happen!"
+            echo "The validation step should have caught this."
+            exit 1
+          fi
+          echo "✅ lib/ is confirmed in sync"
+
       - name: Publish in NPM (as `baileys`)
         run: npm publish --access public
         env:
