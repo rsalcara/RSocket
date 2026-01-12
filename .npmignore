@@ -1,0 +1,14 @@
+# Force npm to use pre-built lib/ folder
+# Ignore source code to prevent automatic compilation
+src/
+tsconfig.json
+.github/
+.vscode/
+Example/
+docs/
+*.md
+!README.md
+.gitignore
+.eslintrc*
+.prettierrc*
+jest.config.js
