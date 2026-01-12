@@ -31,6 +31,8 @@
     "format": "prettier --write \"src/**/*.{ts,js,json,md}\"",
     "lint": "eslint src --ext .js,.ts",
     "lint:fix": "yarn format && yarn lint --fix",
+    "postinstall": "node -e \"console.log('Using pre-built lib/ folder from repository')\"",
+    "prepare": "node -e \"console.log('Skipping TypeScript compilation - using committed lib/ folder')\"",
     "release": "release-it",
     "test": "jest"
   },
