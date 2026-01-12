@@ -10,7 +10,6 @@ browser-messages.json
 browser-token.json
 decoded-ws.json
 package-lock.json
-docs
 messages*.json
 node_modules
 output.csv
