@@ -32,7 +32,8 @@ import {
 	logQRGenerated,
 	makeEventBuffer,
 	makeNoiseHandler,
-	promiseTimeout
+	promiseTimeout,
+	validateRetryConfig
 } from '../Utils'
 import {
 	assertNodeErrorFree,
@@ -71,6 +72,22 @@ export const makeSocket = (config: SocketConfig) => {
 	if (printQRInTerminal) {
 		console.warn(
 			'⚠️ The printQRInTerminal option has been deprecated. You will no longer receive QR codes in the terminal automatically. Please listen to the connection.update event yourself and handle the QR your way. You can remove this message by removing this opttion. This message will be removed in a future version.'
+		)
+	}
+
+	// Validate retry configuration to catch misconfigurations early
+	const retryValidation = validateRetryConfig(config)
+	if (!retryValidation.valid) {
+		throw new Boom(
+			`Invalid retry configuration: ${retryValidation.errors.join(', ')}`,
+			{ statusCode: 500 }
+		)
+	}
+	// Log warnings if any (non-fatal issues)
+	if (retryValidation.warnings.length > 0) {
+		logger.warn(
+			{ warnings: retryValidation.warnings },
+			'Retry configuration warnings detected'
 		)
 	}
 

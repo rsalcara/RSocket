@@ -57,6 +57,28 @@ export type SocketConfig = {
     retryRequestDelayMs: number;
     /** max retry count */
     maxMsgRetryCount: number;
+    /**
+     * Array of delays in milliseconds for exponential backoff on message decrypt retries.
+     * Each element represents the delay for the corresponding retry attempt.
+     * If retry count exceeds array length, uses the last element.
+     *
+     * @example [1000, 2000, 5000, 10000, 20000] // 1s, 2s, 5s, 10s, 20s
+     * @default [1000, 2000, 5000, 10000, 20000]
+     */
+    retryBackoffDelays: number[];
+    /**
+     * Random jitter factor (0-1) applied to retry backoff delays to prevent thundering herd.
+     * Adds random variation: actualDelay = baseDelay + (baseDelay * jitterFactor * random())
+     *
+     * Higher values = more randomization = better thundering herd prevention
+     * Lower values = more predictable timing = easier debugging
+     *
+     * @example 0.15 adds ±15% random variation (e.g., 1000ms becomes 1000-1150ms)
+     * @default 0.15
+     * @min 0 (no jitter)
+     * @max 1 (up to 100% jitter)
+     */
+    retryJitterFactor: number;
     /** time to wait for the generation of the next QR in ms */
     qrTimeout?: number;
     /** provide an auth state object to maintain the auth state */

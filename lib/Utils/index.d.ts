@@ -17,3 +17,4 @@ export * from './event-buffer';
 export * from './process-message';
 export * from './circuit-breaker';
 export * from './baileys-logger';
+export * from './retry-utils';

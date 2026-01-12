@@ -31,6 +31,7 @@ import {
 	derivePairingCodeKey,
 	encodeBigEndian,
 	encodeSignedDeviceIdentity,
+	getBackoffDelay,
 	getCallStatusFromNode,
 	getHistoryMsg,
 	getNextPreKeys,
@@ -888,19 +889,20 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 									const msgId = msgKey.id!
 									const key = `${msgId}:${msgKey?.participant}`
 									const retryCount = msgRetryCache.get<number>(key) || 0
-									const maxRetries = 5
+									const maxRetries = config.maxMsgRetryCount
 
 									// Log decrypt failed with retry count (controlled by BAILEYS_LOG environment variable)
 									logMessage('decrypt_failed', { messageId: msgId, retryCount: retryCount + 1, maxRetries })
 
-									// Exponential backoff: 1s, 2s, 5s, 10s, 20s
-									const backoffDelays = [1000, 2000, 5000, 10000, 20000]
-									const backoffDelay = backoffDelays[Math.min(retryCount, backoffDelays.length - 1)]
-
+									// Calculate exponential backoff with jitter to prevent thundering herd
+									// Uses configurable delays and jitter factor from SocketConfig
+									// Default: [1s, 2s, 5s, 10s, 20s] with 15% jitter
+									// Jitter prevents multiple clients from retrying at exactly the same time
 									if (retryCount > 0) {
+										const backoffDelay = getBackoffDelay(retryCount, config)
 										logger.debug(
 											{ msgId, retryCount, backoffDelay },
-											'Applying exponential backoff before retry'
+											'Applying exponential backoff with jitter before retry'
 										)
 										await delay(backoffDelay)
 									}

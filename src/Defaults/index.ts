@@ -49,6 +49,8 @@ export const DEFAULT_CONNECTION_CONFIG: SocketConfig = {
 	customUploadHosts: [],
 	retryRequestDelayMs: 250,
 	maxMsgRetryCount: 5,
+	retryBackoffDelays: [1000, 2000, 5000, 10000, 20000],
+	retryJitterFactor: 0.15,
 	fireInitQueries: true,
 	auth: undefined as unknown as AuthenticationState,
 	markOnlineOnConnect: true,
