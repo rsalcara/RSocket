@@ -36,7 +36,8 @@
     "release": "release-it",
     "test": "jest",
     "validate:lib-sync": "node scripts/validate-lib-sync.js",
-    "prerelease": "npm run validate:lib-sync"
+    "prerelease": "npm run validate:lib-sync",
+    "config:check": "node scripts/check-baileys-config.js"
   },
   "dependencies": {
     "@cacheable/node-cache": "^1.4.0",

@@ -1,10 +1,57 @@
 # Scripts Directory
 
-Utility scripts for development, validation, and release processes.
+Utility scripts for development, validation, configuration, and release processes.
 
 ## 📋 Available Scripts
 
-### 1. `validate-lib-sync.js`
+### 1. `check-baileys-config.js`
+
+**Purpose:** Display and validate all Baileys environment configuration.
+
+**Usage:**
+```bash
+# Via npm script (recommended)
+npm run config:check
+
+# Direct execution
+node scripts/check-baileys-config.js
+```
+
+**Features:**
+- Shows all Baileys-related environment variables
+- Displays current values vs defaults
+- Validates configuration consistency
+- Provides recommendations
+- Color-coded output for easy reading
+- System information (Node version, AsyncLocalStorage support)
+
+**Example Output:**
+```
+🔍 BAILEYS CONFIGURATION CHECKER
+
+System Information:
+● Node.js Version:      v24.10.0
+● AsyncLocalStorage:    Available ✓
+
+Core Logging Configuration:
+● BAILEYS_LOG              true
+○ USE_STRUCTURED_LOGS      false           (default)
+○ BAILEYS_LOG_LEVEL        info            (default)
+
+Configuration Analysis:
+ℹ Using legacy console.log logging
+  For better observability, set USE_STRUCTURED_LOGS=true
+```
+
+**When to Use:**
+- Before deploying to production
+- When debugging logging issues
+- To verify environment configuration
+- After changing .env files
+
+---
+
+### 2. `validate-lib-sync.js`
 
 **Purpose:** Validates that compiled `lib/` folder is in sync with `src/` source files.
 
