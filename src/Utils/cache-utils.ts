@@ -1,5 +1,4 @@
 import NodeCache from '@cacheable/node-cache'
-import { DEFAULT_CACHE_TTLS, DEFAULT_CACHE_MAX_KEYS } from '../Defaults'
 
 /**
  * Global caches shared across all socket instances
@@ -11,14 +10,32 @@ import { DEFAULT_CACHE_TTLS, DEFAULT_CACHE_MAX_KEYS } from '../Defaults'
  * With 100 tenants × 100 links each = 10,000 keys (at limit)
  * LRU eviction ensures only most recent links are kept
  */
-const caches = {
-	lidCache: new NodeCache({
-		stdTTL: DEFAULT_CACHE_TTLS.USER_DEVICES, // 5 minutes
-		checkperiod: DEFAULT_CACHE_TTLS.USER_DEVICES,
-		maxKeys: DEFAULT_CACHE_MAX_KEYS.LID_GLOBAL, // 10,000 keys
-		deleteOnExpire: true, // Free memory when expired
-		useClones: false // Performance optimization
-	})
+
+let cachedInstance: ReturnType<typeof createCaches> | undefined
+
+function createCaches() {
+	// Import here to avoid circular dependency
+	const { DEFAULT_CACHE_TTLS, DEFAULT_CACHE_MAX_KEYS } = require('../Defaults')
+
+	return {
+		lidCache: new NodeCache({
+			stdTTL: DEFAULT_CACHE_TTLS.USER_DEVICES, // 5 minutes
+			checkperiod: DEFAULT_CACHE_TTLS.USER_DEVICES,
+			maxKeys: DEFAULT_CACHE_MAX_KEYS.LID_GLOBAL, // 10,000 keys
+			deleteOnExpire: true, // Free memory when expired
+			useClones: false // Performance optimization
+		})
+	}
 }
+
+// Lazy initialization to avoid circular dependency
+const caches = new Proxy({} as ReturnType<typeof createCaches>, {
+	get(target, prop) {
+		if(!cachedInstance) {
+			cachedInstance = createCaches()
+		}
+		return cachedInstance[prop as keyof ReturnType<typeof createCaches>]
+	}
+})
 
 export default caches

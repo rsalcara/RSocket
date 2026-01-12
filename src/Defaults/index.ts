@@ -1,7 +1,7 @@
 import { proto } from '../../WAProto'
 import { makeLibSignalRepository } from '../Signal/libsignal'
 import type { AuthenticationState, MediaType, SocketConfig, WAVersion } from '../Types'
-import { Browsers } from '../Utils'
+import { Browsers } from '../Utils/generics'
 import logger from '../Utils/logger'
 import { version } from './baileys-version.json'
 
