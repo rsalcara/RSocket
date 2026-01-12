@@ -973,6 +973,12 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 
 					cleanMessage(msg, authState.creds.me!.id)
 
+					// Log message received successfully (controlled by BAILEYS_LOG environment variable)
+					logMessage('received', {
+						messageId: msg.key.id || 'unknown',
+						from: msg.key.remoteJid || 'unknown'
+					})
+
 					await sendMessageAck(node)
 
 					await upsertMessage(msg, node.attrs.offline ? 'append' : 'notify')
