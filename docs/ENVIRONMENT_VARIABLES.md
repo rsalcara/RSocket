@@ -23,6 +23,15 @@ Complete reference for all RBaileys environment variables and configuration opti
 | `BAILEYS_BUFFER_TIMEOUT_MS` | number | `5000` | Auto-flush timeout in milliseconds |
 | `BAILEYS_BUFFER_AUTO_FLUSH` | boolean | `true` | Enable automatic timeout-based flushing |
 
+### Adaptive Flush Configuration (Advanced)
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `BAILEYS_BUFFER_ADAPTIVE_FLUSH` | boolean | `false` | Enable adaptive flush algorithm (auto-tuning) |
+| `BAILEYS_BUFFER_ADAPTIVE_MIN_TIMEOUT` | number | `1000` | Minimum adaptive timeout in milliseconds |
+| `BAILEYS_BUFFER_ADAPTIVE_MAX_TIMEOUT` | number | `10000` | Maximum adaptive timeout in milliseconds |
+| `BAILEYS_BUFFER_ADAPTIVE_LEARNING_RATE` | number | `0.3` | How aggressively to adapt (0-1 scale) |
+
 ### Legacy Variables
 
 | Variable | Type | Default | Description |

@@ -78,6 +78,10 @@ type BaileysBufferableEventEmitter = BaileysEventEmitter & {
  * - BAILEYS_BUFFER_MAX_ITEMS: Maximum items per buffer before force flush (default: 1000)
  * - BAILEYS_BUFFER_TIMEOUT_MS: Auto-flush timeout in milliseconds (default: 5000)
  * - BAILEYS_BUFFER_AUTO_FLUSH: Enable automatic timeout-based flushing (default: true)
+ * - BAILEYS_BUFFER_ADAPTIVE_FLUSH: Enable adaptive flush algorithm (default: false)
+ * - BAILEYS_BUFFER_ADAPTIVE_MIN_TIMEOUT: Minimum adaptive timeout in ms (default: 1000)
+ * - BAILEYS_BUFFER_ADAPTIVE_MAX_TIMEOUT: Maximum adaptive timeout in ms (default: 10000)
+ * - BAILEYS_BUFFER_ADAPTIVE_LEARNING_RATE: How aggressively to adapt 0-1 (default: 0.3)
  *
  * If not set, sensible defaults are used.
  *
@@ -87,13 +91,158 @@ type BaileysBufferableEventEmitter = BaileysEventEmitter & {
  * BAILEYS_BUFFER_MAX_ITEMS=2000
  * BAILEYS_BUFFER_TIMEOUT_MS=3000
  * BAILEYS_BUFFER_AUTO_FLUSH=true
+ * BAILEYS_BUFFER_ADAPTIVE_FLUSH=true
+ * BAILEYS_BUFFER_ADAPTIVE_MIN_TIMEOUT=1000
+ * BAILEYS_BUFFER_ADAPTIVE_MAX_TIMEOUT=10000
  * ```
  */
 export const BUFFER_CONFIG = {
 	MAX_HISTORY_CACHE_SIZE: parseInt(process.env.BAILEYS_BUFFER_MAX_CACHE || '10000'),
 	MAX_BUFFER_ITEMS: parseInt(process.env.BAILEYS_BUFFER_MAX_ITEMS || '1000'),
 	AUTO_FLUSH_TIMEOUT_MS: parseInt(process.env.BAILEYS_BUFFER_TIMEOUT_MS || '5000'),
-	ENABLE_AUTO_FLUSH: process.env.BAILEYS_BUFFER_AUTO_FLUSH !== 'false'
+	ENABLE_AUTO_FLUSH: process.env.BAILEYS_BUFFER_AUTO_FLUSH !== 'false',
+	// Adaptive flush configuration (disabled by default for safety)
+	ENABLE_ADAPTIVE_FLUSH: process.env.BAILEYS_BUFFER_ADAPTIVE_FLUSH === 'true',
+	ADAPTIVE_MIN_TIMEOUT_MS: parseInt(process.env.BAILEYS_BUFFER_ADAPTIVE_MIN_TIMEOUT || '1000'),
+	ADAPTIVE_MAX_TIMEOUT_MS: parseInt(process.env.BAILEYS_BUFFER_ADAPTIVE_MAX_TIMEOUT || '10000'),
+	ADAPTIVE_LEARNING_RATE: parseFloat(process.env.BAILEYS_BUFFER_ADAPTIVE_LEARNING_RATE || '0.3')
+}
+
+/**
+ * Adaptive flush metrics and state
+ */
+interface AdaptiveFlushMetrics {
+	eventRate: number // Events per second
+	averageBufferSize: number // Average number of items buffered
+	averageFlushDuration: number // Average time to complete a flush (ms)
+	lastFlushTimestamp: number // When the last flush occurred
+	consecutiveSlowFlushes: number // Count of slow flushes (circuit breaker)
+	isHealthy: boolean // Whether adaptive algorithm is functioning well
+	calculatedTimeout: number // Current calculated timeout
+	mode: 'aggressive' | 'balanced' | 'conservative' | 'disabled'
+}
+
+/**
+ * Calculate adaptive timeout based on current load and performance metrics
+ */
+function calculateAdaptiveTimeout(
+	metrics: AdaptiveFlushMetrics,
+	config: typeof BUFFER_CONFIG
+): number {
+	// If not healthy or disabled, return fixed timeout
+	if(!metrics.isHealthy || !config.ENABLE_ADAPTIVE_FLUSH) {
+		return config.AUTO_FLUSH_TIMEOUT_MS
+	}
+
+	const {
+		eventRate,
+		averageBufferSize,
+		averageFlushDuration
+	} = metrics
+
+	const {
+		ADAPTIVE_MIN_TIMEOUT_MS,
+		ADAPTIVE_MAX_TIMEOUT_MS,
+		ADAPTIVE_LEARNING_RATE,
+		MAX_BUFFER_ITEMS
+	} = config
+
+	// Calculate load factor (0-1 scale)
+	// High load = many events coming in OR buffer filling quickly
+	const eventLoadFactor = Math.min(eventRate / 50, 1) // Normalize to 50 events/sec as high load
+	const bufferLoadFactor = Math.min(averageBufferSize / (MAX_BUFFER_ITEMS * 0.8), 1) // 80% of max
+	const flushLoadFactor = Math.min(averageFlushDuration / 1000, 1) // Normalize to 1 second
+
+	// Combined load factor (weighted average)
+	const combinedLoad = (
+		eventLoadFactor * 0.5 +      // Event rate is most important
+		bufferLoadFactor * 0.3 +      // Buffer size matters
+		flushLoadFactor * 0.2         // Flush speed less important
+	)
+
+	// Determine operating mode
+	let mode: AdaptiveFlushMetrics['mode']
+	let targetTimeout: number
+
+	if(combinedLoad < 0.3) {
+		// AGGRESSIVE: Low load - flush faster for lower latency
+		mode = 'aggressive'
+		targetTimeout = ADAPTIVE_MIN_TIMEOUT_MS
+	} else if(combinedLoad > 0.7) {
+		// CONSERVATIVE: High load - wait longer to consolidate more events
+		mode = 'conservative'
+		targetTimeout = ADAPTIVE_MAX_TIMEOUT_MS
+	} else {
+		// BALANCED: Medium load - interpolate between min and max
+		mode = 'balanced'
+		const normalizedLoad = (combinedLoad - 0.3) / 0.4 // Map 0.3-0.7 to 0-1
+		targetTimeout = ADAPTIVE_MIN_TIMEOUT_MS +
+			(ADAPTIVE_MAX_TIMEOUT_MS - ADAPTIVE_MIN_TIMEOUT_MS) * normalizedLoad
+	}
+
+	// Apply learning rate for smooth transitions (exponential moving average)
+	const currentTimeout = metrics.calculatedTimeout || config.AUTO_FLUSH_TIMEOUT_MS
+	const newTimeout = currentTimeout * (1 - ADAPTIVE_LEARNING_RATE) +
+		targetTimeout * ADAPTIVE_LEARNING_RATE
+
+	// Update mode
+	metrics.mode = mode
+
+	// Ensure bounds
+	return Math.max(
+		ADAPTIVE_MIN_TIMEOUT_MS,
+		Math.min(ADAPTIVE_MAX_TIMEOUT_MS, Math.floor(newTimeout))
+	)
+}
+
+/**
+ * Update adaptive flush metrics with new data
+ */
+function updateAdaptiveMetrics(
+	metrics: AdaptiveFlushMetrics,
+	itemsBuffered: number,
+	flushDurationMs: number,
+	config: typeof BUFFER_CONFIG
+): void {
+	const now = Date.now()
+	const timeSinceLastFlush = now - metrics.lastFlushTimestamp
+
+	// Calculate event rate (events per second)
+	if(timeSinceLastFlush > 0) {
+		const eventsPerMs = itemsBuffered / timeSinceLastFlush
+		const eventsPerSec = eventsPerMs * 1000
+
+		// Exponential moving average
+		metrics.eventRate = metrics.eventRate * 0.7 + eventsPerSec * 0.3
+	}
+
+	// Update average buffer size (exponential moving average)
+	metrics.averageBufferSize = metrics.averageBufferSize * 0.7 + itemsBuffered * 0.3
+
+	// Update average flush duration (exponential moving average)
+	metrics.averageFlushDuration = metrics.averageFlushDuration * 0.7 + flushDurationMs * 0.3
+
+	// Update timestamp
+	metrics.lastFlushTimestamp = now
+
+	// Circuit breaker: detect if flushes are consistently slow (> 2 seconds)
+	if(flushDurationMs > 2000) {
+		metrics.consecutiveSlowFlushes++
+	} else {
+		metrics.consecutiveSlowFlushes = 0
+	}
+
+	// Mark as unhealthy if too many consecutive slow flushes (circuit breaker)
+	if(metrics.consecutiveSlowFlushes >= 5) {
+		metrics.isHealthy = false
+		metrics.mode = 'disabled'
+	} else if(metrics.consecutiveSlowFlushes === 0 && !metrics.isHealthy) {
+		// Recover health after one good flush
+		metrics.isHealthy = true
+	}
+
+	// Calculate new timeout
+	metrics.calculatedTimeout = calculateAdaptiveTimeout(metrics, config)
 }
 
 export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter => {
@@ -107,6 +256,31 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 		itemsBuffered: 0,
 		flushCount: 0,
 		historyCacheSize: 0
+	}
+
+	// Adaptive flush metrics (initialized with defaults)
+	let adaptiveMetrics: AdaptiveFlushMetrics = {
+		eventRate: 0,
+		averageBufferSize: 0,
+		averageFlushDuration: 0,
+		lastFlushTimestamp: Date.now(),
+		consecutiveSlowFlushes: 0,
+		isHealthy: true,
+		calculatedTimeout: BUFFER_CONFIG.AUTO_FLUSH_TIMEOUT_MS,
+		mode: BUFFER_CONFIG.ENABLE_ADAPTIVE_FLUSH ? 'balanced' : 'disabled'
+	}
+
+	// Log adaptive flush initialization if enabled
+	if(BUFFER_CONFIG.ENABLE_ADAPTIVE_FLUSH) {
+		logger.info({
+			minTimeout: BUFFER_CONFIG.ADAPTIVE_MIN_TIMEOUT_MS,
+			maxTimeout: BUFFER_CONFIG.ADAPTIVE_MAX_TIMEOUT_MS,
+			learningRate: BUFFER_CONFIG.ADAPTIVE_LEARNING_RATE
+		}, 'adaptive flush enabled')
+		logEventBuffer('adaptive_flush_enabled', {
+			minTimeout: BUFFER_CONFIG.ADAPTIVE_MIN_TIMEOUT_MS,
+			maxTimeout: BUFFER_CONFIG.ADAPTIVE_MAX_TIMEOUT_MS
+		})
 	}
 
 	// take the generic event and fire it as a baileys event
@@ -127,15 +301,35 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 
 		// Start auto-flush timer when buffering begins
 		if (BUFFER_CONFIG.ENABLE_AUTO_FLUSH && !autoFlushTimer && buffersInProgress === 1) {
+			// Use adaptive timeout if enabled, otherwise use fixed timeout
+			const timeoutMs = BUFFER_CONFIG.ENABLE_ADAPTIVE_FLUSH
+				? adaptiveMetrics.calculatedTimeout
+				: BUFFER_CONFIG.AUTO_FLUSH_TIMEOUT_MS
+
 			autoFlushTimer = setTimeout(() => {
 				logger.warn({
-					timeoutMs: BUFFER_CONFIG.AUTO_FLUSH_TIMEOUT_MS,
+					timeoutMs,
+					adaptiveMode: adaptiveMetrics.mode,
 					itemsBuffered: bufferMetrics.itemsBuffered
 				}, 'auto-flushing buffer due to timeout')
-				logEventBuffer('buffer_timeout')
+				logEventBuffer('buffer_timeout', {
+					timeoutMs,
+					mode: adaptiveMetrics.mode
+				})
 				flush(true)
 				autoFlushTimer = null
-			}, BUFFER_CONFIG.AUTO_FLUSH_TIMEOUT_MS)
+			}, timeoutMs)
+
+			// Log adaptive timeout adjustment
+			if(BUFFER_CONFIG.ENABLE_ADAPTIVE_FLUSH) {
+				logger.debug({
+					timeout: timeoutMs,
+					mode: adaptiveMetrics.mode,
+					eventRate: adaptiveMetrics.eventRate.toFixed(2),
+					avgBufferSize: adaptiveMetrics.averageBufferSize.toFixed(1),
+					avgFlushDuration: adaptiveMetrics.averageFlushDuration.toFixed(1)
+				}, 'adaptive timeout calculated')
+			}
 		}
 	}
 
@@ -161,6 +355,10 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 			autoFlushTimer = null
 		}
 
+		// Track flush start time for adaptive metrics
+		const flushStartTime = Date.now()
+		const itemsBeforeFlush = bufferMetrics.itemsBuffered
+
 		const newData = makeBufferData()
 		const chatUpdates = Object.values(data.chatUpdates)
 		// gather the remaining conditional events so we re-queue them
@@ -182,6 +380,29 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 		bufferMetrics.flushCount += 1
 		bufferMetrics.itemsBuffered = 0
 
+		// Calculate flush duration for adaptive metrics
+		const flushDuration = Date.now() - flushStartTime
+
+		// Update adaptive flush metrics if enabled
+		if(BUFFER_CONFIG.ENABLE_ADAPTIVE_FLUSH) {
+			updateAdaptiveMetrics(
+				adaptiveMetrics,
+				itemsBeforeFlush,
+				flushDuration,
+				BUFFER_CONFIG
+			)
+
+			// Log adaptive metrics update
+			logger.debug({
+				mode: adaptiveMetrics.mode,
+				calculatedTimeout: adaptiveMetrics.calculatedTimeout,
+				eventRate: adaptiveMetrics.eventRate.toFixed(2),
+				avgBufferSize: adaptiveMetrics.averageBufferSize.toFixed(1),
+				flushDuration,
+				isHealthy: adaptiveMetrics.isHealthy
+			}, 'adaptive metrics updated')
+		}
+
 		// Clean history cache if it grows too large (LRU-like behavior)
 		cleanHistoryCache()
 
@@ -190,23 +411,38 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 			conditionalChatUpdatesLeft,
 			historyCacheSize: historyCache.size,
 			flushCount: bufferMetrics.flushCount,
-			forced: force
+			forced: force,
+			flushDuration
 		}, 'released buffered events')
 
 		// BAILEYS_LOG logging
 		logEventBuffer('buffer_flush', {
 			flushCount: bufferMetrics.flushCount,
-			historyCacheSize: historyCache.size
+			historyCacheSize: historyCache.size,
+			adaptiveMode: adaptiveMetrics.mode,
+			flushDuration
 		})
 
 		// Log metrics periodically (every 10 flushes)
 		if (bufferMetrics.flushCount % 10 === 0) {
-			logBufferMetrics({
+			const metricsToLog: any = {
 				itemsBuffered: bufferMetrics.itemsBuffered,
 				flushCount: bufferMetrics.flushCount,
 				historyCacheSize: bufferMetrics.historyCacheSize,
 				buffersInProgress
-			})
+			}
+
+			// Add adaptive metrics if enabled
+			if(BUFFER_CONFIG.ENABLE_ADAPTIVE_FLUSH) {
+				metricsToLog.adaptive = {
+					mode: adaptiveMetrics.mode,
+					timeout: adaptiveMetrics.calculatedTimeout,
+					eventRate: parseFloat(adaptiveMetrics.eventRate.toFixed(2)),
+					isHealthy: adaptiveMetrics.isHealthy
+				}
+			}
+
+			logBufferMetrics(metricsToLog)
 		}
 
 		// Reset buffers in progress if forced

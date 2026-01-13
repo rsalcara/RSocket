@@ -62,7 +62,7 @@ export declare function logInfo(message: string, data?: any): void;
 /**
  * Log event buffer operations
  */
-export declare function logEventBuffer(event: 'buffer_start' | 'buffer_flush' | 'buffer_overflow' | 'buffer_timeout' | 'cache_cleanup', details?: {
+export declare function logEventBuffer(event: 'buffer_start' | 'buffer_flush' | 'buffer_overflow' | 'buffer_timeout' | 'cache_cleanup' | 'adaptive_flush_enabled', details?: {
     itemsBuffered?: number;
     flushCount?: number;
     historyCacheSize?: number;
@@ -70,6 +70,12 @@ export declare function logEventBuffer(event: 'buffer_start' | 'buffer_flush' | 
     removed?: number;
     remaining?: number;
     autoFlushed?: boolean;
+    adaptiveMode?: string;
+    timeoutMs?: number;
+    flushDuration?: number;
+    minTimeout?: number;
+    maxTimeout?: number;
+    mode?: string;
 }): void;
 /**
  * Log event buffer metrics (periodic monitoring)

@@ -169,7 +169,7 @@ export function logInfo(message: string, data?: any): void {
 /**
  * Log event buffer operations
  */
-export function logEventBuffer(event: 'buffer_start' | 'buffer_flush' | 'buffer_overflow' | 'buffer_timeout' | 'cache_cleanup', details?: {
+export function logEventBuffer(event: 'buffer_start' | 'buffer_flush' | 'buffer_overflow' | 'buffer_timeout' | 'cache_cleanup' | 'adaptive_flush_enabled', details?: {
 	itemsBuffered?: number
 	flushCount?: number
 	historyCacheSize?: number
@@ -177,6 +177,12 @@ export function logEventBuffer(event: 'buffer_start' | 'buffer_flush' | 'buffer_
 	removed?: number
 	remaining?: number
 	autoFlushed?: boolean
+	adaptiveMode?: string
+	timeoutMs?: number
+	flushDuration?: number
+	minTimeout?: number
+	maxTimeout?: number
+	mode?: string
 }): void {
 	if (!isBaileysLogEnabled()) return
 
@@ -185,10 +191,17 @@ export function logEventBuffer(event: 'buffer_start' | 'buffer_flush' | 'buffer_
 		console.log(`[BAILEYS] 📦 Event buffering started`)
 		break
 	case 'buffer_flush':
-		console.log(`[BAILEYS] 🔄 Event buffer flushed`, {
+		const flushDetails: any = {
 			flushCount: details?.flushCount,
 			historyCacheSize: details?.historyCacheSize
-		})
+		}
+		if(details?.adaptiveMode) {
+			flushDetails.mode = details.adaptiveMode
+		}
+		if(details?.flushDuration) {
+			flushDetails.duration = `${details.flushDuration}ms`
+		}
+		console.log(`[BAILEYS] 🔄 Event buffer flushed`, flushDetails)
 		break
 	case 'buffer_overflow':
 		console.log(`[BAILEYS] ⚠️  Buffer overflow detected - Force flushing`, {
@@ -197,7 +210,20 @@ export function logEventBuffer(event: 'buffer_start' | 'buffer_flush' | 'buffer_
 		})
 		break
 	case 'buffer_timeout':
-		console.log(`[BAILEYS] ⏰ Buffer auto-flush triggered by timeout`)
+		const timeoutDetails: any = {}
+		if(details?.mode) {
+			timeoutDetails.mode = details.mode
+		}
+		if(details?.timeoutMs) {
+			timeoutDetails.timeout = `${details.timeoutMs}ms`
+		}
+		console.log(`[BAILEYS] ⏰ Buffer auto-flush triggered by timeout`, timeoutDetails)
+		break
+	case 'adaptive_flush_enabled':
+		console.log(`[BAILEYS] 🧠 Adaptive flush enabled`, {
+			minTimeout: `${details?.minTimeout}ms`,
+			maxTimeout: `${details?.maxTimeout}ms`
+		})
 		break
 	case 'cache_cleanup':
 		console.log(`[BAILEYS] 🧹 History cache cleaned`, {

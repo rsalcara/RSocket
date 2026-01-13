@@ -39,6 +39,10 @@ type BaileysBufferableEventEmitter = BaileysEventEmitter & {
  * - BAILEYS_BUFFER_MAX_ITEMS: Maximum items per buffer before force flush (default: 1000)
  * - BAILEYS_BUFFER_TIMEOUT_MS: Auto-flush timeout in milliseconds (default: 5000)
  * - BAILEYS_BUFFER_AUTO_FLUSH: Enable automatic timeout-based flushing (default: true)
+ * - BAILEYS_BUFFER_ADAPTIVE_FLUSH: Enable adaptive flush algorithm (default: false)
+ * - BAILEYS_BUFFER_ADAPTIVE_MIN_TIMEOUT: Minimum adaptive timeout in ms (default: 1000)
+ * - BAILEYS_BUFFER_ADAPTIVE_MAX_TIMEOUT: Maximum adaptive timeout in ms (default: 10000)
+ * - BAILEYS_BUFFER_ADAPTIVE_LEARNING_RATE: How aggressively to adapt 0-1 (default: 0.3)
  *
  * If not set, sensible defaults are used.
  *
@@ -48,6 +52,9 @@ type BaileysBufferableEventEmitter = BaileysEventEmitter & {
  * BAILEYS_BUFFER_MAX_ITEMS=2000
  * BAILEYS_BUFFER_TIMEOUT_MS=3000
  * BAILEYS_BUFFER_AUTO_FLUSH=true
+ * BAILEYS_BUFFER_ADAPTIVE_FLUSH=true
+ * BAILEYS_BUFFER_ADAPTIVE_MIN_TIMEOUT=1000
+ * BAILEYS_BUFFER_ADAPTIVE_MAX_TIMEOUT=10000
  * ```
  */
 export declare const BUFFER_CONFIG: {
@@ -55,6 +62,10 @@ export declare const BUFFER_CONFIG: {
     MAX_BUFFER_ITEMS: number;
     AUTO_FLUSH_TIMEOUT_MS: number;
     ENABLE_AUTO_FLUSH: boolean;
+    ENABLE_ADAPTIVE_FLUSH: boolean;
+    ADAPTIVE_MIN_TIMEOUT_MS: number;
+    ADAPTIVE_MAX_TIMEOUT_MS: number;
+    ADAPTIVE_LEARNING_RATE: number;
 };
 export declare const makeEventBuffer: (logger: ILogger) => BaileysBufferableEventEmitter;
 export {};
