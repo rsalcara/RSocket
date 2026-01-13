@@ -8,7 +8,24 @@
       "Bash(npx tsc:*)",
       "Bash(npm install)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(npm pack:*)",
+      "Bash(test:*)",
+      "Bash(cat:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(node -e:*)",
+      "Bash(git restore:*)",
+      "Bash(git mv:*)",
+      "Bash(dir:*)",
+      "Bash(ls:*)",
+      "Bash(git rm:*)",
+      "Bash(del nul)",
+      "Bash(git ls-files:*)",
+      "Bash(chmod:*)",
+      "Bash(node scripts/validate-lib-sync.js:*)",
+      "Bash(tree:*)",
+      "Bash(node scripts/check-baileys-config.js:*)",
+      "Bash(npm install:*)"
     ]
   }
 }

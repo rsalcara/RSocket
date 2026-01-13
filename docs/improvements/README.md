@@ -123,7 +123,7 @@ Esta pasta contém a documentação de todas as melhorias e correções implemen
 ### Categoria 3: Observabilidade
 
 - [ ] Health check endpoints
-- [ ] Prometheus metrics
+- [x] **Prometheus metrics** ✅ IMPLEMENTADO
 - [ ] Error tracking integration
 - [ ] Performance monitoring
 
@@ -145,7 +145,56 @@ Esta pasta contém a documentação de todas as melhorias e correções implemen
 
 ---
 
+#### 4. **Prometheus Metrics Integration** 📊 **NOVO**
+- **Arquivos**:
+  - `src/Utils/prometheus-metrics.ts`
+  - `src/Utils/event-buffer.ts` (integração)
+  - `src/Socket/socket.ts` (inicialização)
+- **Status**: ✅ Implementado e Documentado
+- **Documentação**:
+  - [PROMETHEUS_INTEGRATION.md](./PROMETHEUS_INTEGRATION.md) - Documentação completa
+  - [Grafana Dashboard](./grafana/baileys-complete-dashboard.json) - Dashboard pronto
+
+**Resumo da solução:**
+- ✅ 30+ métricas de produção (Counters, Gauges, Histograms)
+- ✅ Zero overhead quando desabilitado (default: disabled)
+- ✅ HTTP servidor standalone para endpoint `/metrics`
+- ✅ Padrão Prometheus oficial (biblioteca `prom-client`)
+- ✅ Labels customizados para multi-tenant
+- ✅ Métricas padrão do Node.js (memória, CPU, event loop)
+- ✅ Dashboard Grafana completo pronto para importar
+
+**Categorias de métricas:**
+1. **Buffer Performance** - Flush rate, duration, overflow, cache
+2. **Adaptive Flush** - Timeout, event rate, circuit breaker, health
+3. **Connection** - State, errors, reconnections, listeners
+4. **Messages** - Received/sent, retries, processing duration
+5. **Cache** - Size, evictions, hit rate
+6. **System** - Active connections, memory, uptime
+
+**Configuração via ENV:**
+```bash
+BAILEYS_PROMETHEUS_ENABLED=true
+BAILEYS_PROMETHEUS_PORT=9090
+BAILEYS_PROMETHEUS_PREFIX=baileys_
+BAILEYS_PROMETHEUS_LABELS={"environment":"production"}
+```
+
+---
+
 ## 📝 Changelog
+
+### 2026-01-13
+
+#### Prometheus Metrics Integration - Production Observability
+- ✅ Implementada integração completa com Prometheus
+- ✅ Criado `prometheus-metrics.ts` com 30+ métricas
+- ✅ Integrado métricas no Event Buffer (flush, overflow, cache)
+- ✅ Integrado métricas no Adaptive Flush (circuit breaker, health)
+- ✅ HTTP servidor standalone para `/metrics` endpoint
+- ✅ Dashboard Grafana completo (15 painéis)
+- ✅ Documentação completa com queries PromQL e alertas
+- ✅ Zero breaking changes (opt-in, desabilitado por padrão)
 
 ### 2026-01-11
 

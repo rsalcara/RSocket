@@ -20,5 +20,6 @@ export * from './baileys-logger';
 export * from './retry-utils';
 export * from './trace-context';
 export * from './jid-utils';
+export * from './prometheus-metrics';
 export { createBaileysLogger, getBaileysLogLevel, type BaileysLogger, type BaileysLoggerConfig } from './structured-logger';
 export { useStructuredLogs, getStructuredLogger, setStructuredLogger, legacyLoggerAdapter, adaptedLog, isStructuredLogger } from './logger-adapter';

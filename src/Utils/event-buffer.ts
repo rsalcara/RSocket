@@ -16,6 +16,7 @@ import { ILogger } from './logger'
 import { updateMessageWithReaction, updateMessageWithReceipt } from './messages'
 import { isRealMessage, shouldIncrementChatUnread } from './process-message'
 import { logEventBuffer, logBufferMetrics } from './baileys-logger'
+import { getPrometheus } from './prometheus-metrics'
 
 const BUFFERABLE_EVENT = [
 	'messaging-history.set',
@@ -234,8 +235,17 @@ function updateAdaptiveMetrics(
 
 	// Mark as unhealthy if too many consecutive slow flushes (circuit breaker)
 	if(metrics.consecutiveSlowFlushes >= 5) {
+		const wasHealthy = metrics.isHealthy
 		metrics.isHealthy = false
 		metrics.mode = 'disabled'
+
+		// Record circuit breaker trip in Prometheus (only once)
+		if (wasHealthy) {
+			const prometheus = getPrometheus()
+			if (prometheus) {
+				prometheus.recordAdaptiveCircuitBreakerTrip()
+			}
+		}
 	} else if(metrics.consecutiveSlowFlushes === 0 && !metrics.isHealthy) {
 		// Recover health after one good flush
 		metrics.isHealthy = true
@@ -383,6 +393,17 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 		// Calculate flush duration for adaptive metrics
 		const flushDuration = Date.now() - flushStartTime
 
+		// Record Prometheus metrics
+		const prometheus = getPrometheus()
+		if (prometheus) {
+			prometheus.recordBufferFlush(
+				adaptiveMetrics.mode,
+				force,
+				flushDuration,
+				itemsBeforeFlush
+			)
+		}
+
 		// Update adaptive flush metrics if enabled
 		if(BUFFER_CONFIG.ENABLE_ADAPTIVE_FLUSH) {
 			updateAdaptiveMetrics(
@@ -401,6 +422,17 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 				flushDuration,
 				isHealthy: adaptiveMetrics.isHealthy
 			}, 'adaptive metrics updated')
+
+			// Update Prometheus adaptive metrics
+			if (prometheus) {
+				prometheus.updateAdaptiveMetrics(
+					adaptiveMetrics.mode,
+					adaptiveMetrics.calculatedTimeout,
+					adaptiveMetrics.eventRate,
+					adaptiveMetrics.averageBufferSize,
+					adaptiveMetrics.isHealthy
+				)
+			}
 		}
 
 		// Clean history cache if it grows too large (LRU-like behavior)
@@ -474,8 +506,20 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 				removed: itemsToRemove,
 				remaining: historyCache.size
 			})
+
+			// Record Prometheus metric
+			const prometheus = getPrometheus()
+			if (prometheus) {
+				prometheus.recordBufferCacheCleanup()
+			}
 		}
 		bufferMetrics.historyCacheSize = historyCache.size
+
+		// Update Prometheus cache size metric
+		const prometheus = getPrometheus()
+		if (prometheus) {
+			prometheus.updateBufferCacheSize(historyCache.size)
+		}
 	}
 
 	return {
@@ -507,6 +551,12 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 						itemsBuffered: bufferMetrics.itemsBuffered,
 						maxItems: BUFFER_CONFIG.MAX_BUFFER_ITEMS
 					})
+
+					// Record Prometheus metric
+					const prometheus = getPrometheus()
+					if (prometheus) {
+						prometheus.recordBufferOverflow()
+					}
 
 					flush(true)
 				}

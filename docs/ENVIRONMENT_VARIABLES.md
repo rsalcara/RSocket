@@ -32,6 +32,17 @@ Complete reference for all RBaileys environment variables and configuration opti
 | `BAILEYS_BUFFER_ADAPTIVE_MAX_TIMEOUT` | number | `10000` | Maximum adaptive timeout in milliseconds |
 | `BAILEYS_BUFFER_ADAPTIVE_LEARNING_RATE` | number | `0.3` | How aggressively to adapt (0-1 scale) |
 
+### Prometheus Metrics Configuration (Production Monitoring)
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `BAILEYS_PROMETHEUS_ENABLED` | boolean | `false` | Enable Prometheus metrics export |
+| `BAILEYS_PROMETHEUS_PORT` | number | `9090` | HTTP server port for /metrics endpoint |
+| `BAILEYS_PROMETHEUS_PATH` | string | `/metrics` | Endpoint path for metrics |
+| `BAILEYS_PROMETHEUS_PREFIX` | string | `baileys_` | Prefix for all metric names |
+| `BAILEYS_PROMETHEUS_LABELS` | JSON | `{}` | Custom labels (e.g., `{"env":"prod","service":"zpro"}`) |
+| `BAILEYS_PROMETHEUS_COLLECT_DEFAULT` | boolean | `true` | Collect Node.js default metrics (memory, CPU, etc.) |
+
 ### Legacy Variables
 
 | Variable | Type | Default | Description |

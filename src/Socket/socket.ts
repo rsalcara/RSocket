@@ -26,6 +26,7 @@ import {
 	getErrorCodeFromStreamError,
 	getNextPreKeysNode,
 	getPlatformId,
+	initPrometheus,
 	logAuth,
 	logConnection,
 	logPreKeys,
@@ -104,6 +105,9 @@ export const makeSocket = (config: SocketConfig) => {
 	const ws = new WebSocketClient(url, config)
 
 	ws.connect()
+
+	// Initialize Prometheus metrics if enabled
+	initPrometheus(logger)
 
 	const ev = makeEventBuffer(logger)
 	/** ephemeral key pair used to encrypt/decrypt communication. Unique for each connection */
