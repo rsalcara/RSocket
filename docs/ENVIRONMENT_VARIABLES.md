@@ -14,6 +14,15 @@ Complete reference for all RBaileys environment variables and configuration opti
 | `LOG_LEVEL` | string | `info` | Global log level (fallback for BAILEYS_LOG_LEVEL) |
 | `LOG_FORMAT` | string | `json` | Output format: json\|pretty |
 
+### Event Buffer Configuration
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `BAILEYS_BUFFER_MAX_CACHE` | number | `10000` | Maximum items in history cache before LRU cleanup |
+| `BAILEYS_BUFFER_MAX_ITEMS` | number | `1000` | Maximum items in buffer before force flush |
+| `BAILEYS_BUFFER_TIMEOUT_MS` | number | `5000` | Auto-flush timeout in milliseconds |
+| `BAILEYS_BUFFER_AUTO_FLUSH` | boolean | `true` | Enable automatic timeout-based flushing |
+
 ### Legacy Variables
 
 | Variable | Type | Default | Description |

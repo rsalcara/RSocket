@@ -32,8 +32,23 @@ type BaileysBufferableEventEmitter = BaileysEventEmitter & {
  * @param ev the baileys event emitter
  */
 /**
- * Buffer configuration to prevent memory leaks
- * These values can be adjusted based on your application's needs
+ * Buffer configuration to prevent memory leaks and optimize performance.
+ *
+ * These values can be configured via environment variables:
+ * - BAILEYS_BUFFER_MAX_CACHE: Maximum items in history cache before cleanup (default: 10000)
+ * - BAILEYS_BUFFER_MAX_ITEMS: Maximum items per buffer before force flush (default: 1000)
+ * - BAILEYS_BUFFER_TIMEOUT_MS: Auto-flush timeout in milliseconds (default: 5000)
+ * - BAILEYS_BUFFER_AUTO_FLUSH: Enable automatic timeout-based flushing (default: true)
+ *
+ * If not set, sensible defaults are used.
+ *
+ * Example (.env file):
+ * ```
+ * BAILEYS_BUFFER_MAX_CACHE=20000
+ * BAILEYS_BUFFER_MAX_ITEMS=2000
+ * BAILEYS_BUFFER_TIMEOUT_MS=3000
+ * BAILEYS_BUFFER_AUTO_FLUSH=true
+ * ```
  */
 export declare const BUFFER_CONFIG: {
     MAX_HISTORY_CACHE_SIZE: number;

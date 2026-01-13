@@ -15,6 +15,7 @@ Esta pasta contém a documentação de todas as melhorias e correções implemen
 - **Status**: ✅ Implementado e testado
 - **Documentação**:
   - [BUFFER_LOGGING.md](./BUFFER_LOGGING.md) - Sistema de logging
+  - [BUFFER_CONFIG_ENV.md](./BUFFER_CONFIG_ENV.md) - Configuração via ENV ✨ **NOVO**
   - [LOGGING_EXAMPLES.md](./LOGGING_EXAMPLES.md) - Exemplos práticos
 
 **Resumo da solução:**
@@ -23,13 +24,14 @@ Esta pasta contém a documentação de todas as melhorias e correções implemen
 - ✅ Limite de buffer (1000 itens)
 - ✅ Limpeza automática do cache (LRU - 10.000 itens)
 - ✅ Sistema completo de logging e métricas
-- ✅ Configurações exportáveis e ajustáveis
+- ✅ **Configurações via variáveis de ambiente** ✨ **NOVO**
 
 **Proteções implementadas:**
 1. Timeout automático
 2. Buffer overflow protection
 3. History cache cleanup (LRU)
 4. Métricas de monitoramento
+5. **Configuração flexível via ENV** ✨ **NOVO**
 
 ---
 
