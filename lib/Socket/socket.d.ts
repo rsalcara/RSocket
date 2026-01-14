@@ -2,12 +2,6 @@ import { Boom } from '@hapi/boom';
 import { SocketConfig } from '../Types';
 import { BinaryNode } from '../WABinary';
 import { WebSocketClient } from './Client';
-/**
- * Connects to WA servers and performs:
- * - simple queries (no retry mechanism, wait for connection establishment)
- * - listen to messages and emit events
- * - query phone connection
- */
 export declare const makeSocket: (config: SocketConfig) => {
     type: "md";
     ws: WebSocketClient;

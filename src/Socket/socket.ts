@@ -56,6 +56,9 @@ import { WebSocketClient } from './Client'
  * - query phone connection
  */
 
+// Global counter for active connections (for Prometheus metrics)
+let globalActiveConnections = 0
+
 export const makeSocket = (config: SocketConfig) => {
 	const {
 		waWebSocketUrl,
@@ -389,6 +392,23 @@ export const makeSocket = (config: SocketConfig) => {
 				date: new Date()
 			}
 		})
+
+		// Prometheus: Track disconnection
+		try {
+			const prometheus = getPrometheus()
+			if (prometheus?.isEnabled()) {
+				const jid = authState.creds.me?.id || 'unknown'
+				const connectionId = authState.creds.me?.id?.split('@')[0] || 'unknown'
+				prometheus.updateConnectionState(connectionId, jid, 'disconnected')
+				if (globalActiveConnections > 0) {
+					globalActiveConnections--
+				}
+				prometheus.updateActiveConnections(globalActiveConnections)
+			}
+		} catch (err) {
+			logger.trace({ err }, 'Failed to record disconnection metrics')
+		}
+
 		ev.removeAllListeners('connection.update')
 	}
 
@@ -669,6 +689,21 @@ export const makeSocket = (config: SocketConfig) => {
 
 		ev.emit('connection.update', { connection: 'open' })
 		logConnection('open')
+
+		// Prometheus: Track successful connection
+		try {
+			const prometheus = getPrometheus()
+			if (prometheus?.isEnabled()) {
+				const jid = authState.creds.me?.id || 'unknown'
+				const connectionId = authState.creds.me?.id?.split('@')[0] || 'unknown'
+				prometheus.updateConnectionState(connectionId, jid, 'connected')
+				globalActiveConnections++
+				prometheus.updateActiveConnections(globalActiveConnections)
+			}
+		} catch (err) {
+			// Never let Prometheus errors break connection
+			logger.trace({ err }, 'Failed to record connection metrics')
+		}
 	})
 
 	ws.on('CB:stream:error', (node: BinaryNode) => {
@@ -676,11 +711,32 @@ export const makeSocket = (config: SocketConfig) => {
 
 		const { reason, statusCode } = getErrorCodeFromStreamError(node)
 
+		// Prometheus: Track stream error
+		try {
+			const prometheus = getPrometheus()
+			if (prometheus?.isEnabled()) {
+				prometheus.recordConnectionError('stream_error')
+			}
+		} catch (err) {
+			logger.trace({ err }, 'Failed to record stream error metrics')
+		}
+
 		end(new Boom(`Stream Errored (${reason})`, { statusCode, data: node }))
 	})
 	// stream fail, possible logout
 	ws.on('CB:failure', (node: BinaryNode) => {
 		const reason = +(node.attrs.reason || 500)
+
+		// Prometheus: Track connection failure
+		try {
+			const prometheus = getPrometheus()
+			if (prometheus?.isEnabled()) {
+				prometheus.recordConnectionError('connection_failure')
+			}
+		} catch (err) {
+			logger.trace({ err }, 'Failed to record connection failure metrics')
+		}
+
 		end(new Boom('Connection Failure', { statusCode: reason, data: node.attrs }))
 	})
 
@@ -716,6 +772,18 @@ export const makeSocket = (config: SocketConfig) => {
 		}
 
 		ev.emit('connection.update', { connection: 'connecting', receivedPendingNotifications: false, qr: undefined })
+
+		// Prometheus: Track connecting state
+		try {
+			const prometheus = getPrometheus()
+			if (prometheus?.isEnabled()) {
+				const jid = authState.creds.me?.id || 'unknown'
+				const connectionId = authState.creds.me?.id?.split('@')[0] || 'unknown'
+				prometheus.updateConnectionState(connectionId, jid, 'connecting')
+			}
+		} catch (err) {
+			logger.trace({ err }, 'Failed to record connecting state metrics')
+		}
 	})
 
 	// called when all offline notifs are handled
