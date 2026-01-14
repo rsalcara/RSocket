@@ -817,6 +817,493 @@
       "collapsed": false,
       "datasource": null,
       "gridPos": {"h": 1, "w": 24, "x": 0, "y": 44},
+      "id": 105,
+      "panels": [],
+      "title": "📊 Painel PM2 Style - Métricas Heap e Node.js",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Tamanho do Heap em uso",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 50000000},
+              {"color": "red", "value": 100000000}
+            ]
+          },
+          "unit": "decbytes"
+        }
+      },
+      "gridPos": {"h": 5, "w": 4, "x": 0, "y": 45},
+      "id": 201,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "zpro_baileys_nodejs_heap_size_used_bytes",
+          "legendFormat": "Used Heap Size",
+          "refId": "A"
+        }
+      ],
+      "title": "💾 Used Heap Size",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Percentual de uso do Heap",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 70},
+              {"color": "red", "value": 90}
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": {"h": 5, "w": 4, "x": 4, "y": 45},
+      "id": 202,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "(zpro_baileys_nodejs_heap_size_used_bytes / zpro_baileys_nodejs_heap_size_total_bytes) * 100",
+          "legendFormat": "Heap Usage",
+          "refId": "A"
+        }
+      ],
+      "title": "📈 Heap Usage %",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Tamanho total do Heap alocado",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "blue", "value": null}
+            ]
+          },
+          "unit": "decbytes"
+        }
+      },
+      "gridPos": {"h": 5, "w": 4, "x": 8, "y": 45},
+      "id": 203,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "zpro_baileys_nodejs_heap_size_total_bytes",
+          "legendFormat": "Heap Size",
+          "refId": "A"
+        }
+      ],
+      "title": "📦 Heap Size (Total)",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Latência do Event Loop (média)",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "decimals": 2,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 10},
+              {"color": "red", "value": 50}
+            ]
+          },
+          "unit": "ms"
+        }
+      },
+      "gridPos": {"h": 5, "w": 4, "x": 12, "y": 45},
+      "id": 204,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "zpro_baileys_nodejs_eventloop_lag_mean_seconds * 1000",
+          "legendFormat": "Event Loop Latency",
+          "refId": "A"
+        }
+      ],
+      "title": "⚡ Event Loop Latency",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Latência do Event Loop no percentil 95",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "decimals": 2,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 20},
+              {"color": "red", "value": 100}
+            ]
+          },
+          "unit": "ms"
+        }
+      },
+      "gridPos": {"h": 5, "w": 4, "x": 16, "y": 45},
+      "id": 205,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "zpro_baileys_nodejs_eventloop_lag_p95_seconds * 1000",
+          "legendFormat": "Event Loop p95",
+          "refId": "A"
+        }
+      ],
+      "title": "⚡ Event Loop Latency p95",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Número de handles ativos no Node.js",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 100},
+              {"color": "red", "value": 500}
+            ]
+          }
+        }
+      },
+      "gridPos": {"h": 5, "w": 4, "x": 20, "y": 45},
+      "id": 206,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "zpro_baileys_nodejs_active_handles",
+          "legendFormat": "Active Handles",
+          "refId": "A"
+        }
+      ],
+      "title": "🔗 Active Handles",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Número de requisições ativas no Node.js",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 50},
+              {"color": "red", "value": 200}
+            ]
+          }
+        }
+      },
+      "gridPos": {"h": 5, "w": 4, "x": 0, "y": 50},
+      "id": 207,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "zpro_baileys_nodejs_active_requests",
+          "legendFormat": "Active Requests",
+          "refId": "A"
+        }
+      ],
+      "title": "📡 Active Requests",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Memória Residente (RSS) do processo",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 500000000},
+              {"color": "red", "value": 1000000000}
+            ]
+          },
+          "unit": "decbytes"
+        }
+      },
+      "gridPos": {"h": 5, "w": 4, "x": 4, "y": 50},
+      "id": 208,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "zpro_baileys_process_resident_memory_bytes",
+          "legendFormat": "Memory (RSS)",
+          "refId": "A"
+        }
+      ],
+      "title": "💾 Memória (RSS)",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Uso de CPU do processo (%)",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "decimals": 1,
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 50},
+              {"color": "red", "value": 80}
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": {"h": 5, "w": 4, "x": 8, "y": 50},
+      "id": 209,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "rate(zpro_baileys_process_cpu_seconds_total[1m]) * 100",
+          "legendFormat": "CPU %",
+          "refId": "A"
+        }
+      ],
+      "title": "⚙️ CPU Usage %",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Memória Virtual do processo",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "blue", "value": null}
+            ]
+          },
+          "unit": "decbytes"
+        }
+      },
+      "gridPos": {"h": 5, "w": 4, "x": 12, "y": 50},
+      "id": 210,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "zpro_baileys_process_virtual_memory_bytes",
+          "legendFormat": "Virtual Memory",
+          "refId": "A"
+        }
+      ],
+      "title": "💿 Memória Virtual",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Tempo que o processo está rodando",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null}
+            ]
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": {"h": 5, "w": 4, "x": 16, "y": 50},
+      "id": 211,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "time() - zpro_baileys_process_start_time_seconds",
+          "legendFormat": "Uptime",
+          "refId": "A"
+        }
+      ],
+      "title": "⏰ Process Uptime",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "File descriptors abertos",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 500},
+              {"color": "red", "value": 1000}
+            ]
+          }
+        }
+      },
+      "gridPos": {"h": 5, "w": 4, "x": 20, "y": 50},
+      "id": 212,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "zpro_baileys_process_open_fds",
+          "legendFormat": "Open FDs",
+          "refId": "A"
+        }
+      ],
+      "title": "📁 File Descriptors",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "datasource": null,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 55},
       "id": 104,
       "panels": [],
       "title": "🔧 Métricas Detalhadas Node.js",
