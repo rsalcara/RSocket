@@ -46,6 +46,7 @@ import {
 	xmppSignedPreKey
 } from '../Utils'
 import { makeMutex } from '../Utils/make-mutex'
+import { getPrometheus } from '../Utils/prometheus-metrics'
 import {
 	areJidsSameUser,
 	BinaryNode,
@@ -982,11 +983,38 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 					await sendMessageAck(node)
 
 					await upsertMessage(msg, node.attrs.offline ? 'append' : 'notify')
+
+					// Prometheus: Record message received
+					const prometheus = getPrometheus()
+					if (prometheus?.isEnabled()) {
+						const messageType = msg.message?.conversation ? 'text' :
+										   msg.message?.imageMessage ? 'image' :
+										   msg.message?.videoMessage ? 'video' :
+										   msg.message?.audioMessage ? 'audio' :
+										   msg.message?.documentMessage ? 'document' :
+										   msg.message?.stickerMessage ? 'sticker' :
+										   msg.message?.contactMessage ? 'contact' :
+										   msg.message?.locationMessage ? 'location' :
+										   'other'
+						prometheus.recordMessageReceived(messageType)
+
+						// Record processing duration
+						const processingTime = Date.now() - (msg.messageTimestamp as number) * 1000
+						if (processingTime > 0 && processingTime < 60000) { // Only if reasonable (< 1 min)
+							prometheus.recordMessageProcessingDuration(messageType, processingTime)
+						}
+					}
 				})
 			])
 		} catch (error) {
 			sendMessageAck(node)
 			logger.error({ error, node }, 'error in handling message')
+
+			// Prometheus: Record message processing error
+			const prometheus = getPrometheus()
+			if (prometheus?.isEnabled()) {
+				prometheus.recordConnectionError('message_processing_error')
+			}
 		}
 	}
 

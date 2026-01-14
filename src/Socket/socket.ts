@@ -36,6 +36,7 @@ import {
 	promiseTimeout,
 	validateRetryConfig
 } from '../Utils'
+import { getPrometheus } from '../Utils/prometheus-metrics'
 import {
 	assertNodeErrorFree,
 	BinaryNode,

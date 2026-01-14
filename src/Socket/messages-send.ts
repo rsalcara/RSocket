@@ -36,6 +36,7 @@ import {
 	encodeNewsletterMessage
 } from '../Utils'
 import { getUrlInfo } from '../Utils/link-preview'
+import { getPrometheus } from '../Utils/prometheus-metrics'
 import {
 	areJidsSameUser,
 	BinaryNode,
@@ -767,6 +768,22 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 
 		// Log message sent (controlled by BAILEYS_LOG environment variable)
 		logMessage('sent', { messageId: msgId, to: jid })
+
+		// Prometheus: Record message sent
+		const prometheus = getPrometheus()
+		if (prometheus?.isEnabled()) {
+			const messageType = message.conversation ? 'text' :
+							   message.imageMessage ? 'image' :
+							   message.videoMessage ? 'video' :
+							   message.audioMessage ? 'audio' :
+							   message.documentMessage ? 'document' :
+							   message.stickerMessage ? 'sticker' :
+							   message.contactMessage ? 'contact' :
+							   message.locationMessage ? 'location' :
+							   message.pollCreationMessage || message.pollCreationMessageV2 || message.pollCreationMessageV3 ? 'poll' :
+							   'other'
+			prometheus.recordMessageSent(messageType, true)
+		}
 
 		return msgId
 	}
