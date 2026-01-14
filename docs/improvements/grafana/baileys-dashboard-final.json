@@ -1,0 +1,1270 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Anotações e Alertas",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "datasource": null,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
+      "id": 100,
+      "panels": [],
+      "title": "💻 Recursos do Sistema - CPU e Memória",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Uso de CPU do processo RBaileys em percentual",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisLabel": "% CPU",
+            "axisPlacement": "auto",
+            "fillOpacity": 20,
+            "lineWidth": 2
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 50},
+              {"color": "red", "value": 80}
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 1},
+      "id": 1,
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "expr": "rate(zpro_baileys_process_cpu_seconds_total[1m]) * 100",
+          "legendFormat": "Uso de CPU",
+          "refId": "A"
+        }
+      ],
+      "title": "⚙️ Uso de CPU (%)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Uso de memória residente (RSS) do processo em MB",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisLabel": "MB",
+            "axisPlacement": "auto",
+            "fillOpacity": 20,
+            "lineWidth": 2
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 500000000},
+              {"color": "red", "value": 1000000000}
+            ]
+          },
+          "unit": "decbytes"
+        }
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 1},
+      "id": 2,
+      "options": {
+        "legend": {
+          "calcs": ["mean", "last"],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "expr": "zpro_baileys_process_resident_memory_bytes",
+          "legendFormat": "Uso de Memória",
+          "refId": "A"
+        }
+      ],
+      "title": "💾 Uso de Memória (MB)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Uso de CPU em percentual (gauge)",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "decimals": 1,
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 50},
+              {"color": "red", "value": 80}
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 9},
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "rate(zpro_baileys_process_cpu_seconds_total[1m]) * 100",
+          "legendFormat": "CPU Usage",
+          "refId": "A"
+        }
+      ],
+      "title": "⚙️ CPU Usage",
+      "type": "gauge"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Memória residente (RSS) do processo",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 500000000},
+              {"color": "red", "value": 1000000000}
+            ]
+          },
+          "unit": "decbytes"
+        }
+      },
+      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 9},
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "zpro_baileys_process_resident_memory_bytes",
+          "legendFormat": "Memória (RSS)",
+          "refId": "A"
+        }
+      ],
+      "title": "💾 Memória (RSS)",
+      "type": "gauge"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Latência do Event Loop em milissegundos",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "decimals": 2,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 10},
+              {"color": "red", "value": 50}
+            ]
+          },
+          "unit": "ms"
+        }
+      },
+      "gridPos": {"h": 6, "w": 6, "x": 12, "y": 9},
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "zpro_baileys_nodejs_eventloop_lag_mean_seconds * 1000",
+          "legendFormat": "Event Loop Lag",
+          "refId": "A"
+        }
+      ],
+      "title": "⚡ Event Loop Lag",
+      "type": "gauge"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "File descriptors abertos pelo processo",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 500},
+              {"color": "red", "value": 1000}
+            ]
+          }
+        }
+      },
+      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 9},
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "zpro_baileys_process_open_fds",
+          "legendFormat": "File Descriptors",
+          "refId": "A"
+        }
+      ],
+      "title": "📁 File Descriptors",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "datasource": null,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 15},
+      "id": 101,
+      "panels": [],
+      "title": "📦 Event Buffer - Performance",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Taxa de flush do buffer por minuto",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisLabel": "Flushes/min",
+            "axisPlacement": "auto",
+            "fillOpacity": 20,
+            "lineWidth": 2
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 16},
+      "id": 7,
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "expr": "rate(zpro_baileys_buffer_flush_total[1m]) * 60",
+          "legendFormat": "Taxa de Flush",
+          "refId": "A"
+        }
+      ],
+      "title": "🔄 Taxa de Flush do Buffer",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Tamanho atual do cache de histórico do buffer",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 5000},
+              {"color": "red", "value": 9000}
+            ]
+          }
+        }
+      },
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 16},
+      "id": 8,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "zpro_baileys_buffer_cache_size OR on() vector(0)",
+          "legendFormat": "Tamanho do Cache",
+          "refId": "A"
+        }
+      ],
+      "title": "📊 Cache Size",
+      "type": "gauge"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Limpezas do cache por minuto",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 5},
+              {"color": "red", "value": 10}
+            ]
+          }
+        }
+      },
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 16},
+      "id": 9,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "rate(zpro_baileys_buffer_cache_cleanup_total[1m]) * 60 OR on() vector(0)",
+          "legendFormat": "Limpezas/min",
+          "refId": "A"
+        }
+      ],
+      "title": "🧹 Cache Cleanup",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "datasource": null,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 24},
+      "id": 102,
+      "panels": [],
+      "title": "🤖 Algoritmo Adaptativo & Circuit Breaker",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Status de saúde do sistema adaptativo (1=saudável, 0=problemas)",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [
+            {"options": {"0": {"color": "red", "index": 0, "text": "💔 Unhealthy"}}, "type": "value"},
+            {"options": {"1": {"color": "green", "index": 1, "text": "💚 Healthy"}}, "type": "value"}
+          ],
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "green", "value": 1}
+            ]
+          }
+        }
+      },
+      "gridPos": {"h": 8, "w": 6, "x": 0, "y": 25},
+      "id": 10,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "expr": "zpro_baileys_adaptive_health_status OR on() vector(1)",
+          "refId": "A"
+        }
+      ],
+      "title": "💚 Status de Saúde",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Histórico de disparos do Circuit Breaker ao longo do tempo",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisLabel": "Disparos",
+            "axisPlacement": "auto",
+            "fillOpacity": 20,
+            "lineWidth": 2
+          }
+        }
+      },
+      "gridPos": {"h": 8, "w": 9, "x": 6, "y": 25},
+      "id": 11,
+      "options": {
+        "legend": {
+          "calcs": ["sum"],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "expr": "increase(zpro_baileys_adaptive_circuit_breaker_trips_total[5m]) OR on() vector(0)",
+          "legendFormat": "Disparos (5min)",
+          "refId": "A"
+        }
+      ],
+      "title": "🔌 Circuit Breaker - Histórico",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Disparos do Circuit Breaker na última hora",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 1},
+              {"color": "orange", "value": 5},
+              {"color": "red", "value": 10}
+            ]
+          }
+        }
+      },
+      "gridPos": {"h": 4, "w": 4, "x": 15, "y": 25},
+      "id": 12,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "increase(zpro_baileys_adaptive_circuit_breaker_trips_total[1h]) OR on() vector(0)",
+          "legendFormat": "Última Hora",
+          "refId": "A"
+        }
+      ],
+      "title": "⚠️ Circuit Breaker - Última Hora",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Total acumulado de disparos do Circuit Breaker",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 5},
+              {"color": "red", "value": 20}
+            ]
+          }
+        }
+      },
+      "gridPos": {"h": 4, "w": 5, "x": 19, "y": 25},
+      "id": 13,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "zpro_baileys_adaptive_circuit_breaker_trips_total OR on() vector(0)",
+          "legendFormat": "Total Acumulado",
+          "refId": "A"
+        }
+      ],
+      "title": "🔢 Circuit Breaker - Total",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Taxa de eventos processados por segundo",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisLabel": "Eventos/s",
+            "axisPlacement": "auto",
+            "fillOpacity": 20,
+            "lineWidth": 2
+          }
+        }
+      },
+      "gridPos": {"h": 4, "w": 9, "x": 15, "y": 29},
+      "id": 14,
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "expr": "zpro_baileys_adaptive_event_rate OR on() vector(0)",
+          "legendFormat": "Taxa de Eventos",
+          "refId": "A"
+        }
+      ],
+      "title": "📈 Taxa de Eventos",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "datasource": null,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 33},
+      "id": 103,
+      "panels": [],
+      "title": "📱 Conexões e Mensagens WhatsApp",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Número de conexões WhatsApp ativas no momento",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "green", "value": 1}
+            ]
+          }
+        }
+      },
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 34},
+      "id": 15,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "zpro_baileys_active_connections OR on() vector(0)",
+          "legendFormat": "Conexões Ativas",
+          "refId": "A"
+        }
+      ],
+      "title": "🔗 Conexões WhatsApp",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Total acumulado de mensagens recebidas",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null}
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 34},
+      "id": 16,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "sum(zpro_baileys_messages_received_total) OR on() vector(0)",
+          "legendFormat": "Mensagens Recebidas",
+          "refId": "A"
+        }
+      ],
+      "title": "📨 Mensagens Recebidas",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Total acumulado de mensagens enviadas",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "blue", "value": null}
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 34},
+      "id": 17,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "sum(zpro_baileys_messages_sent_total) OR on() vector(0)",
+          "legendFormat": "Mensagens Enviadas",
+          "refId": "A"
+        }
+      ],
+      "title": "📤 Mensagens Enviadas",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "datasource": null,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 42},
+      "id": 104,
+      "panels": [],
+      "title": "📊 Métricas Detalhadas - Estilo PM2",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Tamanho do Heap em uso",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 50000000},
+              {"color": "red", "value": 100000000}
+            ]
+          },
+          "unit": "decbytes"
+        }
+      },
+      "gridPos": {"h": 5, "w": 4, "x": 0, "y": 43},
+      "id": 18,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "zpro_baileys_nodejs_heap_size_used_bytes",
+          "legendFormat": "Used Heap",
+          "refId": "A"
+        }
+      ],
+      "title": "💾 Used Heap Size",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Percentual de uso do Heap",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 70},
+              {"color": "red", "value": 90}
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": {"h": 5, "w": 4, "x": 4, "y": 43},
+      "id": 19,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "(zpro_baileys_nodejs_heap_size_used_bytes / zpro_baileys_nodejs_heap_size_total_bytes) * 100",
+          "legendFormat": "Heap Usage",
+          "refId": "A"
+        }
+      ],
+      "title": "📈 Heap Usage %",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Tamanho total do Heap alocado",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "blue", "value": null}
+            ]
+          },
+          "unit": "decbytes"
+        }
+      },
+      "gridPos": {"h": 5, "w": 4, "x": 8, "y": 43},
+      "id": 20,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "zpro_baileys_nodejs_heap_size_total_bytes",
+          "legendFormat": "Heap Total",
+          "refId": "A"
+        }
+      ],
+      "title": "📦 Heap Size Total",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Event Loop Latency no percentil 95",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "decimals": 2,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 20},
+              {"color": "red", "value": 100}
+            ]
+          },
+          "unit": "ms"
+        }
+      },
+      "gridPos": {"h": 5, "w": 4, "x": 12, "y": 43},
+      "id": 21,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "zpro_baileys_nodejs_eventloop_lag_p95_seconds * 1000 OR on() vector(0)",
+          "legendFormat": "Event Loop p95",
+          "refId": "A"
+        }
+      ],
+      "title": "⚡ Event Loop p95",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Handles ativos no Node.js (conexões abertas, timers, etc)",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 100},
+              {"color": "red", "value": 500}
+            ]
+          }
+        }
+      },
+      "gridPos": {"h": 5, "w": 4, "x": 16, "y": 43},
+      "id": 22,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "zpro_baileys_nodejs_active_handles",
+          "legendFormat": "Handles Ativos",
+          "refId": "A"
+        }
+      ],
+      "title": "🔗 Handles Ativos",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Memória virtual do processo",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "blue", "value": null}
+            ]
+          },
+          "unit": "decbytes"
+        }
+      },
+      "gridPos": {"h": 5, "w": 4, "x": 20, "y": 43},
+      "id": 23,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "zpro_baileys_process_virtual_memory_bytes",
+          "legendFormat": "Memória Virtual",
+          "refId": "A"
+        }
+      ],
+      "title": "💿 Memória Virtual",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "datasource": null,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 48},
+      "id": 105,
+      "panels": [],
+      "title": "🔧 Métricas Detalhadas Node.js",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Percentis detalhados do Event Loop Lag",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisLabel": "milissegundos",
+            "fillOpacity": 10
+          },
+          "unit": "ms"
+        }
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 49},
+      "id": 24,
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "zpro_baileys_nodejs_eventloop_lag_min_seconds * 1000",
+          "legendFormat": "Mínimo",
+          "refId": "A"
+        },
+        {
+          "expr": "zpro_baileys_nodejs_eventloop_lag_mean_seconds * 1000",
+          "legendFormat": "Média",
+          "refId": "B"
+        },
+        {
+          "expr": "zpro_baileys_nodejs_eventloop_lag_max_seconds * 1000",
+          "legendFormat": "Máximo",
+          "refId": "C"
+        },
+        {
+          "expr": "zpro_baileys_nodejs_eventloop_lag_p50_seconds * 1000",
+          "legendFormat": "P50 (Mediana)",
+          "refId": "D"
+        },
+        {
+          "expr": "zpro_baileys_nodejs_eventloop_lag_p90_seconds * 1000",
+          "legendFormat": "P90",
+          "refId": "E"
+        },
+        {
+          "expr": "zpro_baileys_nodejs_eventloop_lag_p95_seconds * 1000",
+          "legendFormat": "P95",
+          "refId": "F"
+        },
+        {
+          "expr": "zpro_baileys_nodejs_eventloop_lag_p99_seconds * 1000",
+          "legendFormat": "P99",
+          "refId": "G"
+        }
+      ],
+      "title": "⚡ Event Loop Lag - Percentis Detalhados",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Handles e Requisições ativas do Node.js. Handles = conexões abertas, timers, etc. Requests = operações assíncronas pendentes (DNS, HTTP, etc)",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisLabel": "Quantidade",
+            "fillOpacity": 10
+          }
+        }
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 49},
+      "id": 25,
+      "options": {
+        "legend": {
+          "calcs": ["mean", "last"],
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "zpro_baileys_nodejs_active_handles",
+          "legendFormat": "Handles Ativos",
+          "refId": "A"
+        },
+        {
+          "expr": "zpro_baileys_nodejs_active_requests",
+          "legendFormat": "Requests Ativos",
+          "refId": "B"
+        }
+      ],
+      "title": "🔄 Handles e Requests Ativos",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Latência do Event Loop",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "decimals": 2,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 10},
+              {"color": "red", "value": 50}
+            ]
+          },
+          "unit": "ms"
+        }
+      },
+      "gridPos": {"h": 5, "w": 6, "x": 0, "y": 57},
+      "id": 26,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "zpro_baileys_nodejs_eventloop_lag_mean_seconds * 1000",
+          "legendFormat": "Event Loop Latency",
+          "refId": "A"
+        }
+      ],
+      "title": "⚡ Event Loop Latency",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Tempo que o processo está rodando",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null}
+            ]
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": {"h": 5, "w": 6, "x": 6, "y": 57},
+      "id": 27,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "time() - zpro_baileys_process_start_time_seconds",
+          "legendFormat": "Process Uptime",
+          "refId": "A"
+        }
+      ],
+      "title": "⏰ Process Uptime",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "File descriptors abertos",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 500},
+              {"color": "red", "value": 1000}
+            ]
+          }
+        }
+      },
+      "gridPos": {"h": 5, "w": 6, "x": 12, "y": 57},
+      "id": 28,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "zpro_baileys_process_open_fds",
+          "legendFormat": "File Descriptors",
+          "refId": "A"
+        }
+      ],
+      "title": "📁 File Descriptors",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Uso total de CPU da máquina (todos os processos)",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "decimals": 1,
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 60},
+              {"color": "red", "value": 85}
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": {"h": 5, "w": 6, "x": 18, "y": 57},
+      "id": 29,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100) OR rate(zpro_baileys_process_cpu_seconds_total[1m]) * 100",
+          "legendFormat": "CPU Total",
+          "refId": "A"
+        }
+      ],
+      "title": "⚙️ CPU Usage % (Máquina)",
+      "type": "stat"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 27,
+  "style": "dark",
+  "tags": ["rbaileys", "whatsapp", "zpro", "português", "final"],
+  "templating": {"list": []},
+  "time": {"from": "now-1h", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "RBaileys - Dashboard Final Completo",
+  "uid": "rbaileys-final",
+  "version": 1,
+  "description": "Dashboard definitivo do RBaileys com todas as métricas organizadas - CPU, Memória, Event Buffer, Circuit Breaker, Conexões, Mensagens e métricas detalhadas Node.js"
+}
