@@ -834,7 +834,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "expr": "rate(zpro_baileys_buffer_flush_total[5m]) * 60",
-          "legendFormat": "{{mode}} (for?ado={{forced}})",
+          "legendFormat": "{{mode}} (forçado={{forced}})",
           "refId": "A"
         }
       ],
@@ -2365,7 +2365,7 @@
           "refId": "A"
         }
       ],
-      "title": "âš?Event Loop Latency",
+      "title": "🔗Event Loop Latency",
       "type": "stat"
     },
     {
@@ -2437,7 +2437,7 @@
           "refId": "A"
         }
       ],
-      "title": "âš?Event Loop Latency p95",
+      "title": "🔗Event Loop Latency p95",
       "type": "stat"
     },
     {
@@ -3084,7 +3084,7 @@
           "refId": "F"
         }
       ],
-      "title": "âš?Event Loop Lag - Percentis Detalhados",
+      "title": "📈Event Loop Lag - Percentis Detalhados",
       "type": "timeseries"
     },
     {
