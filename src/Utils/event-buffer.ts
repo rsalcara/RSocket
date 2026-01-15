@@ -549,6 +549,9 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 			return
 		}
 
+		const hadPendingFlush = buffersInProgress > 0
+		const itemsCount = bufferMetrics.itemsBuffered
+
 		logger.info({
 			buffersInProgress,
 			itemsBuffered: bufferMetrics.itemsBuffered,
@@ -572,6 +575,12 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 				itemsBuffered: bufferMetrics.itemsBuffered
 			}, 'performing final flush before destroying buffer')
 			flush(true)
+
+			// Record Prometheus metric for final flush
+			const prometheus = getPrometheus()
+			if (prometheus) {
+				prometheus.recordBufferFinalFlush(itemsCount)
+			}
 		} else {
 			logger.debug('no buffers in progress, skipping final flush')
 		}
@@ -592,7 +601,7 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 		}
 
 		logger.info({
-			wasBuffering: buffersInProgress > 0,
+			wasBuffering: hadPendingFlush,
 			finalFlushCount: preResetMetrics.flushCount,
 			finalHistoryCacheSize: preResetMetrics.historyCacheSize
 		}, 'event buffer destroyed successfully')
@@ -602,6 +611,12 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 			flushCount: preResetMetrics.flushCount,
 			historyCacheSize: preResetMetrics.historyCacheSize
 		})
+
+		// Record Prometheus metric for buffer destruction
+		const prometheus = getPrometheus()
+		if (prometheus) {
+			prometheus.recordBufferDestroyed('socket_close', hadPendingFlush)
+		}
 	}
 
 	return {
