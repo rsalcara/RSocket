@@ -25,6 +25,12 @@ type BaileysBufferableEventEmitter = BaileysEventEmitter & {
     flush(force?: boolean): boolean;
     /** is there an ongoing buffer */
     isBuffering(): boolean;
+    /**
+     * Destroys the buffer and cleans up all resources.
+     * Prevents memory leaks and orphaned timers when socket disconnects.
+     * This is automatically called when the socket closes.
+     */
+    destroy(): void;
 };
 /**
  * The event buffer logically consolidates different events into a single event

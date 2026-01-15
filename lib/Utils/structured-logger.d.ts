@@ -67,7 +67,7 @@ export declare function createBaileysLogger(config: BaileysLoggerConfig): {
     /**
      * Raw logger access for custom logging
      */
-    logger: import("pino").default.Logger<never, boolean>;
+    logger: any;
     /**
      * Check if logging is enabled
      */

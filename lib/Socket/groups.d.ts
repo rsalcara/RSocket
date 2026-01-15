@@ -106,6 +106,7 @@ export declare const makeGroupsSocket: (config: SocketConfig) => {
         createBufferedFunction<A extends any[], T>(work: (...args: A) => Promise<T>): (...args: A) => Promise<T>;
         flush(force?: boolean): boolean;
         isBuffering(): boolean;
+        destroy(): void;
     };
     authState: {
         creds: import("../Types").AuthenticationCreds;
@@ -121,7 +122,7 @@ export declare const makeGroupsSocket: (config: SocketConfig) => {
     sendNode: (frame: BinaryNode) => Promise<void>;
     logout: (msg?: string) => Promise<void>;
     end: (error: Error | undefined) => void;
-    onUnexpectedError: (err: Error | import("@hapi/boom").Boom, msg: string) => void;
+    onUnexpectedError: (err: Error | Boom, msg: string) => void;
     uploadPreKeys: (count?: number) => Promise<void>;
     uploadPreKeysToServerIfRequired: () => Promise<void>;
     requestPairingCode: (phoneNumber: string, customPairingCode?: string) => Promise<string>;
