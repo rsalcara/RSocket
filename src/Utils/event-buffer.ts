@@ -64,6 +64,12 @@ type BaileysBufferableEventEmitter = BaileysEventEmitter & {
 	flush(force?: boolean): boolean
 	/** is there an ongoing buffer */
 	isBuffering(): boolean
+	/**
+	 * Destroys the buffer and cleans up all resources.
+	 * Prevents memory leaks and orphaned timers when socket disconnects.
+	 * This is automatically called when the socket closes.
+	 */
+	destroy(): void
 }
 
 /**
@@ -262,6 +268,7 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 	let data = makeBufferData()
 	let buffersInProgress = 0
 	let autoFlushTimer: NodeJS.Timeout | null = null
+	let isDestroyed = false
 	let bufferMetrics = {
 		itemsBuffered: 0,
 		flushCount: 0,
@@ -301,6 +308,11 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 	})
 
 	function buffer() {
+		// Prevent buffering if destroyed
+		if (isDestroyed) {
+			return
+		}
+
 		buffersInProgress += 1
 
 		// Log buffer start (only on first buffer)
@@ -344,6 +356,11 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 	}
 
 	function flush(force = false) {
+		// Prevent flushing if destroyed
+		if (isDestroyed) {
+			return false
+		}
+
 		// no buffer going on
 		if (!buffersInProgress) {
 			return false
@@ -522,6 +539,46 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 		}
 	}
 
+	/**
+	 * Destroys the buffer and cleans up all resources
+	 * This prevents memory leaks and orphaned timers when socket disconnects
+	 */
+	function destroy() {
+		if (isDestroyed) {
+			return
+		}
+
+		logger.info('destroying event buffer')
+		isDestroyed = true
+
+		// Clear auto-flush timer to prevent orphaned flushes
+		if (autoFlushTimer) {
+			clearTimeout(autoFlushTimer)
+			autoFlushTimer = null
+		}
+
+		// Final flush to ensure no data loss (only if there's buffered data)
+		if (buffersInProgress > 0) {
+			logger.debug('performing final flush before destroying buffer')
+			flush(true)
+		}
+
+		// Remove all event listeners to prevent memory leaks
+		ev.removeAllListeners()
+
+		// Reset internal state
+		buffersInProgress = 0
+		data = makeBufferData()
+		historyCache.clear()
+		bufferMetrics = {
+			itemsBuffered: 0,
+			flushCount: 0,
+			historyCacheSize: 0
+		}
+
+		logger.info('event buffer destroyed successfully')
+	}
+
 	return {
 		process(handler) {
 			const listener = (map: BaileysEventData) => {
@@ -593,7 +650,8 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 		},
 		on: (...args) => ev.on(...args),
 		off: (...args) => ev.off(...args),
-		removeAllListeners: (...args) => ev.removeAllListeners(...args)
+		removeAllListeners: (...args) => ev.removeAllListeners(...args),
+		destroy
 	}
 }
 

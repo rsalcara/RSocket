@@ -410,6 +410,11 @@ export const makeSocket = (config: SocketConfig) => {
 		}
 
 		ev.removeAllListeners('connection.update')
+
+		// Destroy event buffer to prevent orphaned timers and memory leaks
+		// This stops auto-flush timers and cleans up all buffer resources
+		ev.destroy()
+		logger.debug('event buffer destroyed after connection close')
 	}
 
 	const waitForSocketOpen = async () => {
