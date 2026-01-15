@@ -285,7 +285,7 @@ def add_buffer_destruction_panels(dashboard_path):
 
     # Write back (always use UTF-8 for output)
     with open(dashboard_path, 'w', encoding='utf-8') as f:
-        json.dump(dashboard, f, indent=2, ensure_ascii=True)
+        json.dump(dashboard, f, indent=2, ensure_ascii=False)
 
     print(f"✅ Added 3 buffer destruction panels to {dashboard_path}")
     print(f"   - Panel 111: Buffers Destruídos (Total)")
