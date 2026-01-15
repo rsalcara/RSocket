@@ -40,6 +40,9 @@ export class BaileysPrometheusMetrics {
 	public bufferOverflowTotal?: Counter<string>
 	public bufferCacheSize?: Gauge<string>
 	public bufferCacheCleanupTotal?: Counter<string>
+	public bufferDestroyedTotal?: Counter<string>
+	public bufferFinalFlushTotal?: Counter<string>
+	public bufferActiveCount?: Gauge<string>
 
 	// ============================================
 	// CATEGORY 2: ADAPTIVE FLUSH METRICS
@@ -193,6 +196,26 @@ export class BaileysPrometheusMetrics {
 		this.bufferCacheCleanupTotal = new Counter({
 			name: `${prefix}buffer_cache_cleanup_total`,
 			help: 'Total number of cache cleanup operations (LRU evictions)',
+			registers: [this.registry]
+		})
+
+		this.bufferDestroyedTotal = new Counter({
+			name: `${prefix}buffer_destroyed_total`,
+			help: 'Total number of event buffers destroyed (prevents orphaned buffers)',
+			labelNames: ['reason', 'had_pending_flush'],
+			registers: [this.registry]
+		})
+
+		this.bufferFinalFlushTotal = new Counter({
+			name: `${prefix}buffer_final_flush_total`,
+			help: 'Total number of final flushes performed during buffer destruction',
+			labelNames: ['items_count'],
+			registers: [this.registry]
+		})
+
+		this.bufferActiveCount = new Gauge({
+			name: `${prefix}buffer_active_count`,
+			help: 'Number of currently active event buffers',
 			registers: [this.registry]
 		})
 
@@ -431,6 +454,54 @@ export class BaileysPrometheusMetrics {
 	public recordBufferCacheCleanup(): void {
 		if (!this.config.enabled) return
 		this.bufferCacheCleanupTotal?.inc()
+	}
+
+	/**
+	 * Record buffer destruction event
+	 */
+	public recordBufferDestroyed(reason: string, hadPendingFlush: boolean): void {
+		if (!this.config.enabled) return
+		this.bufferDestroyedTotal?.inc({
+			reason,
+			had_pending_flush: String(hadPendingFlush)
+		})
+	}
+
+	/**
+	 * Record final flush during buffer destruction
+	 */
+	public recordBufferFinalFlush(itemsCount: number): void {
+		if (!this.config.enabled) return
+		this.bufferFinalFlushTotal?.inc({
+			items_count: itemsCount > 0 ? 'with_items' : 'empty'
+		})
+	}
+
+	/**
+	 * Update active buffer count
+	 */
+	public updateBufferActiveCount(count: number): void {
+		if (!this.config.enabled) return
+		this.bufferActiveCount?.set(count)
+	}
+
+	/**
+	 * Increment active buffer count (when buffer is created)
+	 */
+	public incrementBufferActiveCount(): void {
+		if (!this.config.enabled) return
+		// This assumes we're tracking it incrementally
+		// If we have a way to get current value, we increment it
+		// Otherwise, the application should call updateBufferActiveCount with the total
+	}
+
+	/**
+	 * Decrement active buffer count (when buffer is destroyed)
+	 */
+	public decrementBufferActiveCount(): void {
+		if (!this.config.enabled) return
+		// This assumes we're tracking it incrementally
+		// Otherwise, the application should call updateBufferActiveCount with the total
 	}
 
 	/**

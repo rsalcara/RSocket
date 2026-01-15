@@ -22,6 +22,9 @@ export declare class BaileysPrometheusMetrics {
     bufferOverflowTotal?: Counter<string>;
     bufferCacheSize?: Gauge<string>;
     bufferCacheCleanupTotal?: Counter<string>;
+    bufferDestroyedTotal?: Counter<string>;
+    bufferFinalFlushTotal?: Counter<string>;
+    bufferActiveCount?: Gauge<string>;
     adaptiveTimeoutSeconds?: Gauge<string>;
     adaptiveEventRate?: Gauge<string>;
     adaptiveBufferSizeAvg?: Gauge<string>;
@@ -78,6 +81,26 @@ export declare class BaileysPrometheusMetrics {
      * Record buffer cache cleanup
      */
     recordBufferCacheCleanup(): void;
+    /**
+     * Record buffer destruction event
+     */
+    recordBufferDestroyed(reason: string, hadPendingFlush: boolean): void;
+    /**
+     * Record final flush during buffer destruction
+     */
+    recordBufferFinalFlush(itemsCount: number): void;
+    /**
+     * Update active buffer count
+     */
+    updateBufferActiveCount(count: number): void;
+    /**
+     * Increment active buffer count (when buffer is created)
+     */
+    incrementBufferActiveCount(): void;
+    /**
+     * Decrement active buffer count (when buffer is destroyed)
+     */
+    decrementBufferActiveCount(): void;
     /**
      * Update adaptive flush metrics
      */
