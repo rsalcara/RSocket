@@ -37,7 +37,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
       "description": "Uso de CPU do processo RBaileys",
       "fieldConfig": {
@@ -130,7 +130,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "rate(zpro_baileys_process_cpu_user_seconds_total[5m]) * 100",
           "legendFormat": "CPU User (Usuário)",
@@ -139,7 +139,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "rate(zpro_baileys_process_cpu_system_seconds_total[5m]) * 100",
           "legendFormat": "CPU System (Sistema)",
@@ -148,7 +148,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "rate(zpro_baileys_process_cpu_seconds_total[5m]) * 100",
           "legendFormat": "CPU Total",
@@ -161,7 +161,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
       "description": "Uso de memória do processo RBaileys em MB",
       "fieldConfig": {
@@ -254,7 +254,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "zpro_baileys_process_resident_memory_bytes / 1024 / 1024",
           "legendFormat": "Memória RSS (Residente)",
@@ -263,7 +263,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "zpro_baileys_process_heap_bytes / 1024 / 1024",
           "legendFormat": "Heap Memory (Node.js)",
@@ -272,7 +272,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "zpro_baileys_process_virtual_memory_bytes / 1024 / 1024",
           "legendFormat": "Memória Virtual",
@@ -285,7 +285,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
       "description": "Uso de CPU do processo Zpro-Backend (%)",
       "fieldConfig": {
@@ -347,7 +347,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "rate(zpro_baileys_process_cpu_seconds_total[1m]) * 100",
           "legendFormat": "CPU %",
@@ -360,7 +360,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
       "description": "Memória do processo Zpro-Backend",
       "fieldConfig": {
@@ -419,7 +419,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "zpro_baileys_process_resident_memory_bytes",
           "legendFormat": "Memory (RSS)",
@@ -432,7 +432,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
       "description": "Uso de CPU do processo Zpro-Frontend (%)",
       "fieldConfig": {
@@ -494,7 +494,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "rate(process_cpu_seconds_total{job=\"zpro-frontend\"}[1m]) * 100 OR vector(0)",
           "legendFormat": "CPU %",
@@ -507,7 +507,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
       "description": "Memória do processo Zpro-Frontend",
       "fieldConfig": {
@@ -566,7 +566,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "process_resident_memory_bytes{job=\"zpro-frontend\"} OR vector(0)",
           "legendFormat": "Memory (RSS)",
@@ -579,7 +579,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
       "description": "Uso total de CPU da máquina (todos os processos)",
       "fieldConfig": {
@@ -643,7 +643,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100) OR rate(zpro_baileys_process_cpu_seconds_total[1m]) * 100",
           "legendFormat": "CPU Total",
@@ -656,7 +656,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
       "description": "Latência do Event Loop do Node.js",
       "fieldConfig": {
@@ -717,7 +717,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "zpro_baileys_nodejs_eventloop_lag_seconds * 1000",
           "legendFormat": "Latência do Event Loop",
@@ -743,7 +743,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
       "description": "Taxa de flush do buffer por minuto",
       "fieldConfig": {
@@ -831,7 +831,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "rate(zpro_baileys_buffer_flush_total[5m]) * 60",
           "legendFormat": "{{mode}} (for?ado={{forced}})",
@@ -844,9 +844,9 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Tamanho atual do cache do buffer",
+      "description": "Tamanho atual do cache do buffer. Se está em 0 ou baixo, significa que eventos estão sendo processados rapidamente (BOM!)",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -901,7 +901,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "zpro_baileys_buffer_cache_size",
           "refId": "A"
@@ -913,7 +913,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
       "description": "Número de file descriptors abertos",
       "fieldConfig": {
@@ -972,7 +972,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "zpro_baileys_process_open_fds",
           "legendFormat": "Arquivos Abertos",
@@ -985,9 +985,9 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Limpezas do cache do buffer",
+      "description": "Limpezas de cache por minuto. Se está em 0, significa que o cache nunca excedeu o limite (ÓTIMO! Sistema eficiente)",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1072,9 +1072,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "rate(zpro_baileys_buffer_cache_cleanup_total[5m]) * 60",
+          "expr": "rate(zpro_baileys_buffer_cache_cleanup_total[5m]) * 60 or vector(0)",
           "legendFormat": "Limpezas/min",
           "refId": "A"
         }
@@ -1085,9 +1085,9 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Eventos de overflow do buffer (deve ser 0)",
+      "description": "Eventos de overflow nos últimos 5 minutos. DEVE SER ZERO! Se > 0, buffer está ficando cheio (aumentar MAX_BUFFER_ITEMS)",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1170,9 +1170,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "increase(zpro_baileys_buffer_overflow_total[5m])",
+          "expr": "increase(zpro_baileys_buffer_overflow_total[5m]) or vector(0)",
           "legendFormat": "Eventos de Overflow",
           "refId": "A"
         }
@@ -1183,7 +1183,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
       "description": "Total de buffers destruídos (previne buffers órfãos)",
       "fieldConfig": {
@@ -1242,7 +1242,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "zpro_baileys_buffer_destroyed_total",
           "legendFormat": "Total Destruído",
@@ -1255,7 +1255,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
       "description": "Taxa de destruição de buffers por minuto (monitor de desconexões)",
       "fieldConfig": {
@@ -1348,7 +1348,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "rate(zpro_baileys_buffer_destroyed_total[5m]) * 60",
           "legendFormat": "{{reason}} (flush={{had_pending_flush}})",
@@ -1361,7 +1361,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
       "description": "Flush final forçado durante destruição (garante zero perda de dados)",
       "fieldConfig": {
@@ -1416,7 +1416,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "zpro_baileys_buffer_final_flush_total",
           "legendFormat": "Flush Final",
@@ -1442,7 +1442,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
       "description": "Status de saúde do algoritmo adaptativo",
       "fieldConfig": {
@@ -1454,16 +1454,12 @@
             {
               "options": {
                 "0": {
-                  "color": "green",
-                  "text": "SAUDÁVEL"
+                  "color": "red",
+                  "text": "NÃO SAUDÁVEL"
                 },
                 "1": {
-                  "color": "yellow",
-                  "text": "ALERTA"
-                },
-                "2": {
-                  "color": "red",
-                  "text": "CRÍTICO"
+                  "color": "green",
+                  "text": "SAUDÁVEL"
                 }
               },
               "type": "value"
@@ -1473,16 +1469,12 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "red",
                 "value": 0
               },
               {
-                "color": "yellow",
+                "color": "green",
                 "value": 1
-              },
-              {
-                "color": "red",
-                "value": 2
               }
             ]
           }
@@ -1516,7 +1508,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "zpro_baileys_adaptive_health_status",
           "legendFormat": "Status do Sistema",
@@ -1529,7 +1521,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
       "description": "Taxa de eventos por segundo",
       "fieldConfig": {
@@ -1614,7 +1606,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "zpro_baileys_adaptive_event_rate",
           "legendFormat": "Taxa de Eventos",
@@ -1627,7 +1619,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
       "description": "Disparos do Circuit Breaker na Última hora",
       "fieldConfig": {
@@ -1686,7 +1678,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "increase(zpro_baileys_adaptive_circuit_breaker_trips_total[1h])",
           "legendFormat": "Última Hora",
@@ -1699,7 +1691,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
       "description": "Total acumulado de disparos do Circuit Breaker",
       "fieldConfig": {
@@ -1758,7 +1750,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "zpro_baileys_adaptive_circuit_breaker_trips_total",
           "legendFormat": "Total Acumulado",
@@ -1771,9 +1763,9 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Histórico de disparos do circuit breaker ao longo do tempo",
+      "description": "Disparos do circuit breaker ao longo do tempo. Se está em 0, sistema está saudável (ÓTIMO!). Valores > 0 indicam sistema em alerta.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1859,9 +1851,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "increase(zpro_baileys_adaptive_circuit_breaker_trips_total[5m])",
+          "expr": "increase(zpro_baileys_adaptive_circuit_breaker_trips_total[5m]) or vector(0)",
           "legendFormat": "Disparos (últimos 5min)",
           "refId": "A"
         }
@@ -1885,7 +1877,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
       "description": "Número de conex?es WhatsApp ativas",
       "fieldConfig": {
@@ -1943,7 +1935,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "zpro_baileys_active_connections",
           "legendFormat": "Conexões WhatsApp",
@@ -1956,7 +1948,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
       "description": "Total de mensagens recebidas (acumulado)",
       "fieldConfig": {
@@ -2008,7 +2000,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "sum(zpro_baileys_messages_received_total)",
           "refId": "A"
@@ -2020,7 +2012,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
       "description": "Total de mensagens enviadas (acumulado)",
       "fieldConfig": {
@@ -2071,7 +2063,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "sum(zpro_baileys_messages_sent_total)",
           "refId": "A"
@@ -2096,7 +2088,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
       "description": "Tamanho do Heap em uso",
       "fieldConfig": {
@@ -2155,7 +2147,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "zpro_baileys_nodejs_heap_size_used_bytes",
           "legendFormat": "Used Heap Size",
@@ -2168,7 +2160,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
       "description": "Percentual de uso do Heap",
       "fieldConfig": {
@@ -2229,7 +2221,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "(zpro_baileys_nodejs_heap_size_used_bytes / zpro_baileys_nodejs_heap_size_total_bytes) * 100",
           "legendFormat": "Heap Usage",
@@ -2242,7 +2234,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
       "description": "Tamanho total do Heap alocado",
       "fieldConfig": {
@@ -2293,7 +2285,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "zpro_baileys_nodejs_heap_size_total_bytes",
           "legendFormat": "Heap Size",
@@ -2306,7 +2298,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
       "description": "Latência do Event Loop (média)",
       "fieldConfig": {
@@ -2366,7 +2358,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "zpro_baileys_nodejs_eventloop_lag_mean_seconds * 1000",
           "legendFormat": "Event Loop Latency",
@@ -2379,7 +2371,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
       "description": "Latência do Event Loop no percentil 95",
       "fieldConfig": {
@@ -2439,7 +2431,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "zpro_baileys_nodejs_eventloop_lag_p95_seconds * 1000 OR (zpro_baileys_nodejs_eventloop_lag_seconds * 1000)",
           "refId": "A"
@@ -2451,7 +2443,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
       "description": "Número de handles ativos no Node.js",
       "fieldConfig": {
@@ -2509,7 +2501,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "zpro_baileys_nodejs_active_handles",
           "legendFormat": "Active Handles",
@@ -2522,7 +2514,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
       "description": "Número de requisi📁es ativas no Node.js",
       "fieldConfig": {
@@ -2580,7 +2572,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "zpro_baileys_nodejs_active_requests",
           "legendFormat": "Active Requests",
@@ -2593,7 +2585,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
       "description": "Memória Residente (RSS) do processo",
       "fieldConfig": {
@@ -2652,7 +2644,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "zpro_baileys_process_resident_memory_bytes",
           "legendFormat": "Memory (RSS)",
@@ -2665,7 +2657,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
       "description": "Uso de CPU do processo (%)",
       "fieldConfig": {
@@ -2727,7 +2719,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "rate(zpro_baileys_process_cpu_seconds_total[1m]) * 100",
           "legendFormat": "CPU %",
@@ -2740,7 +2732,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
       "description": "Memória Virtual do processo",
       "fieldConfig": {
@@ -2791,7 +2783,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "zpro_baileys_process_virtual_memory_bytes",
           "legendFormat": "Virtual Memory",
@@ -2804,7 +2796,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
       "description": "Tempo que o processo está rodando",
       "fieldConfig": {
@@ -2855,7 +2847,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "time() - zpro_baileys_process_start_time_seconds",
           "legendFormat": "Uptime",
@@ -2868,7 +2860,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
       "description": "File descriptors abertos",
       "fieldConfig": {
@@ -2926,7 +2918,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "zpro_baileys_process_open_fds",
           "legendFormat": "Open FDs",
@@ -2952,7 +2944,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
       "description": "Percentis do Event Loop Lag",
       "fieldConfig": {
@@ -3040,7 +3032,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "zpro_baileys_nodejs_eventloop_lag_min_seconds * 1000",
           "legendFormat": "Mínimo",
@@ -3049,7 +3041,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "zpro_baileys_nodejs_eventloop_lag_mean_seconds * 1000",
           "legendFormat": "Média",
@@ -3058,7 +3050,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "zpro_baileys_nodejs_eventloop_lag_max_seconds * 1000",
           "legendFormat": "Máximo",
@@ -3067,7 +3059,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "zpro_baileys_nodejs_eventloop_lag_p50_seconds * 1000",
           "legendFormat": "P50 (Mediana)",
@@ -3076,7 +3068,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "zpro_baileys_nodejs_eventloop_lag_p90_seconds * 1000",
           "legendFormat": "P90",
@@ -3085,7 +3077,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "zpro_baileys_nodejs_eventloop_lag_p99_seconds * 1000",
           "legendFormat": "P99",
@@ -3098,7 +3090,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "efa2xes2233swf"
+        "uid": "${DS_PROMETHEUS}"
       },
       "description": "Handles e Requisi📁es Node.js",
       "fieldConfig": {
@@ -3185,7 +3177,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "zpro_baileys_nodejs_active_handles",
           "legendFormat": "Active Handles",
@@ -3194,7 +3186,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "efa2xes2233swf"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "zpro_baileys_nodejs_active_requests",
           "legendFormat": "Active Requests",
@@ -3216,7 +3208,27 @@
     "final-v2"
   ],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "current": {
+          "selected": false,
+          "text": "Prometheus",
+          "value": "Prometheus"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Datasource",
+        "multi": false,
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "queryValue": "",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      }
+    ]
   },
   "time": {
     "from": "2026-01-14T03:34:12.321Z",
