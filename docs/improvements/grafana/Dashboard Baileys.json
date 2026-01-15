@@ -9,12 +9,12 @@
         "enable": true,
         "hide": true,
         "iconColor": "rgba(0, 211, 255, 1)",
-        "name": "Anota\u00f0\u009f\u0093\u0081es e Alertas",
+        "name": "Anotaðes e Alertas",
         "type": "dashboard"
       }
     ]
   },
-  "description": "Dashboard final - vers\u00c3\u00a3o organizada com todas as m\u00c3\u00a9tricas seguindo especifica\u00c3\u00a7\u00c3\u00b5es exatas: CPU, Mem\u00c3\u00b3ria, Event Buffer, Circuit Breaker combinado, Conex\u00c3\u00b5es e Mensagens WhatsApp",
+  "description": "Dashboard final - versÃ£o organizada com todas as mÃ©tricas seguindo especificaÃ§Ãµes exatas: CPU, MemÃ³ria, Event Buffer, Circuit Breaker combinado, ConexÃµes e Mensagens WhatsApp",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -31,7 +31,7 @@
       },
       "id": 100,
       "panels": [],
-      "title": "\u00f0\u009f\u0092\u00bb Recursos do Sistema - CPU e Mem\u00c3\u00b3ria",
+      "title": "ð» Recursos do Sistema - CPU e MemÃ³ria",
       "type": "row"
     },
     {
@@ -133,7 +133,7 @@
             "uid": "efa2xes2233swf"
           },
           "expr": "rate(zpro_baileys_process_cpu_user_seconds_total[5m]) * 100",
-          "legendFormat": "CPU User (Usu\u00c3\u00a1rio)",
+          "legendFormat": "CPU User (UsuÃ¡rio)",
           "refId": "A"
         },
         {
@@ -155,7 +155,7 @@
           "refId": "C"
         }
       ],
-      "title": "\u00f0\u009f\u0093\u008a Uso de CPU (%)",
+      "title": "ð Uso de CPU (%)",
       "type": "timeseries"
     },
     {
@@ -163,7 +163,7 @@
         "type": "prometheus",
         "uid": "efa2xes2233swf"
       },
-      "description": "Uso de mem\u00c3\u00b3ria do processo RBaileys em MB",
+      "description": "Uso de memÃ³ria do processo RBaileys em MB",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -257,7 +257,7 @@
             "uid": "efa2xes2233swf"
           },
           "expr": "zpro_baileys_process_resident_memory_bytes / 1024 / 1024",
-          "legendFormat": "Mem\u00c3\u00b3ria RSS (Residente)",
+          "legendFormat": "MemÃ³ria RSS (Residente)",
           "refId": "A"
         },
         {
@@ -275,11 +275,11 @@
             "uid": "efa2xes2233swf"
           },
           "expr": "zpro_baileys_process_virtual_memory_bytes / 1024 / 1024",
-          "legendFormat": "Mem\u00c3\u00b3ria Virtual",
+          "legendFormat": "MemÃ³ria Virtual",
           "refId": "C"
         }
       ],
-      "title": "\u00f0\u009f\u0092\u00be Uso de Mem\u00c3\u00b3ria (MB)",
+      "title": "ð¾ Uso de MemÃ³ria (MB)",
       "type": "timeseries"
     },
     {
@@ -354,7 +354,7 @@
           "refId": "A"
         }
       ],
-      "title": "\u00e2\u009a\u0099\u00ef\u00b8\u008f CPU Zpro-Backend %",
+      "title": "âï¸ CPU Zpro-Backend %",
       "type": "stat"
     },
     {
@@ -362,7 +362,7 @@
         "type": "prometheus",
         "uid": "efa2xes2233swf"
       },
-      "description": "Mem\u00c3\u00b3ria do processo Zpro-Backend",
+      "description": "MemÃ³ria do processo Zpro-Backend",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -426,7 +426,7 @@
           "refId": "A"
         }
       ],
-      "title": "\u00f0\u009f\u0092\u00be Mem\u00c3\u00b3ria Zpro-Backend",
+      "title": "ð¾ MemÃ³ria Zpro-Backend",
       "type": "stat"
     },
     {
@@ -501,7 +501,7 @@
           "refId": "A"
         }
       ],
-      "title": "\u00e2\u009a\u0099\u00ef\u00b8\u008f CPU Zpro-Frontend %",
+      "title": "âï¸ CPU Zpro-Frontend %",
       "type": "stat"
     },
     {
@@ -509,7 +509,7 @@
         "type": "prometheus",
         "uid": "efa2xes2233swf"
       },
-      "description": "Mem\u00c3\u00b3ria do processo Zpro-Frontend",
+      "description": "MemÃ³ria do processo Zpro-Frontend",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -573,7 +573,7 @@
           "refId": "A"
         }
       ],
-      "title": "\u00f0\u009f\u0092\u00be Mem\u00c3\u00b3ria Zpro-Frontend",
+      "title": "ð¾ MemÃ³ria Zpro-Frontend",
       "type": "stat"
     },
     {
@@ -581,7 +581,7 @@
         "type": "prometheus",
         "uid": "efa2xes2233swf"
       },
-      "description": "Uso total de CPU da m\u00c3\u00a1quina (todos os processos)",
+      "description": "Uso total de CPU da mÃ¡quina (todos os processos)",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -650,7 +650,7 @@
           "refId": "A"
         }
       ],
-      "title": "\u00e2\u009a\u0099\u00ef\u00b8\u008f CPU Total M\u00c3\u00a1quina %",
+      "title": "âï¸ CPU Total MÃ¡quina %",
       "type": "stat"
     },
     {
@@ -658,7 +658,7 @@
         "type": "prometheus",
         "uid": "efa2xes2233swf"
       },
-      "description": "Lat\u00c3\u00aancia do Event Loop do Node.js",
+      "description": "LatÃªncia do Event Loop do Node.js",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -720,11 +720,11 @@
             "uid": "efa2xes2233swf"
           },
           "expr": "zpro_baileys_nodejs_eventloop_lag_seconds * 1000",
-          "legendFormat": "Lat\u00c3\u00aancia do Event Loop",
+          "legendFormat": "LatÃªncia do Event Loop",
           "refId": "A"
         }
       ],
-      "title": "\u00e2\u009a?Event Loop Lag (ms)",
+      "title": "â?Event Loop Lag (ms)",
       "type": "gauge"
     },
     {
@@ -737,7 +737,7 @@
       },
       "id": 101,
       "panels": [],
-      "title": "\u00f0\u009f\u0093\u00a6 Event Buffer - Performance",
+      "title": "ð¦ Event Buffer - Performance",
       "type": "row"
     },
     {
@@ -838,7 +838,7 @@
           "refId": "A"
         }
       ],
-      "title": "\u00f0\u009f\u009a\u0080 Taxa de Flush do Buffer (por minuto)",
+      "title": "ð Taxa de Flush do Buffer (por minuto)",
       "type": "timeseries"
     },
     {
@@ -907,7 +907,7 @@
           "refId": "A"
         }
       ],
-      "title": "\u00f0\u009f\u0093\u008a Tamanho do Cache",
+      "title": "ð Tamanho do Cache",
       "type": "gauge"
     },
     {
@@ -915,7 +915,7 @@
         "type": "prometheus",
         "uid": "efa2xes2233swf"
       },
-      "description": "N\u00c3\u00bamero de file descriptors abertos",
+      "description": "NÃºmero de file descriptors abertos",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -979,7 +979,7 @@
           "refId": "A"
         }
       ],
-      "title": "\u00f0\u009f\u0093\u0081 File Descriptors Abertos",
+      "title": "ð File Descriptors Abertos",
       "type": "stat"
     },
     {
@@ -1079,7 +1079,7 @@
           "refId": "A"
         }
       ],
-      "title": "\u00f0\u009f\u00a7\u00b9 Cache Cleanup (por minuto)",
+      "title": "ð§¹ Cache Cleanup (por minuto)",
       "type": "timeseries"
     },
     {
@@ -1177,7 +1177,7 @@
           "refId": "A"
         }
       ],
-      "title": "\u00e2\u009a\u00a0\u00ef\u00b8\u008f Buffer Overflow (5min)",
+      "title": "â ï¸ Buffer Overflow (5min)",
       "type": "timeseries"
     },
     {
@@ -1185,7 +1185,7 @@
         "type": "prometheus",
         "uid": "efa2xes2233swf"
       },
-      "description": "Total de buffers destru\u00eddos (previne buffers \u00f3rf\u00e3os)",
+      "description": "Total de buffers destruídos (previne buffers órfãos)",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1245,11 +1245,11 @@
             "uid": "efa2xes2233swf"
           },
           "expr": "zpro_baileys_buffer_destroyed_total",
-          "legendFormat": "Total Destru\u00eddo",
+          "legendFormat": "Total Destruído",
           "refId": "A"
         }
       ],
-      "title": "\ud83d\udce6 Buffers Destru\u00eddos (Total)",
+      "title": "📦 Buffers Destruídos (Total)",
       "type": "stat"
     },
     {
@@ -1257,7 +1257,7 @@
         "type": "prometheus",
         "uid": "efa2xes2233swf"
       },
-      "description": "Taxa de destrui\u00e7\u00e3o de buffers por minuto (monitor de desconex\u00f5es)",
+      "description": "Taxa de destruição de buffers por minuto (monitor de desconexões)",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1267,7 +1267,7 @@
             "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
-            "axisLabel": "Destrui\u00e7\u00f5es/min",
+            "axisLabel": "Destruições/min",
             "axisPlacement": "auto",
             "barAlignment": 0,
             "barWidthFactor": 0.6,
@@ -1355,7 +1355,7 @@
           "refId": "A"
         }
       ],
-      "title": "\ud83d\udca5 Taxa de Destrui\u00e7\u00e3o de Buffers (por minuto)",
+      "title": "💥 Taxa de Destruição de Buffers (por minuto)",
       "type": "timeseries"
     },
     {
@@ -1363,7 +1363,7 @@
         "type": "prometheus",
         "uid": "efa2xes2233swf"
       },
-      "description": "Flush final for\u00e7ado durante destrui\u00e7\u00e3o (garante zero perda de dados)",
+      "description": "Flush final forçado durante destruição (garante zero perda de dados)",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1423,7 +1423,7 @@
           "refId": "A"
         }
       ],
-      "title": "\ud83d\udd04 Flush Final Durante Destrui\u00e7\u00e3o",
+      "title": "🔄 Flush Final Durante Destruição",
       "type": "stat"
     },
     {
@@ -1436,7 +1436,7 @@
       },
       "id": 102,
       "panels": [],
-      "title": "\u00f0\u009f\u00a4\u0096 Algoritmo Adaptativo",
+      "title": "ð¤ Algoritmo Adaptativo",
       "type": "row"
     },
     {
@@ -1444,7 +1444,7 @@
         "type": "prometheus",
         "uid": "efa2xes2233swf"
       },
-      "description": "Status de sa\u00c3\u00bade do algoritmo adaptativo",
+      "description": "Status de saÃºde do algoritmo adaptativo",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1455,7 +1455,7 @@
               "options": {
                 "0": {
                   "color": "green",
-                  "text": "SAUD\u00c3\u0081VEL"
+                  "text": "SAUDÃVEL"
                 },
                 "1": {
                   "color": "yellow",
@@ -1463,7 +1463,7 @@
                 },
                 "2": {
                   "color": "red",
-                  "text": "CR\u00c3\u008dTICO"
+                  "text": "CRÃTICO"
                 }
               },
               "type": "value"
@@ -1523,7 +1523,7 @@
           "refId": "A"
         }
       ],
-      "title": "\u00f0\u009f\u0092\u009a Status de Sa\u00c3\u00bade",
+      "title": "ð Status de SaÃºde",
       "type": "gauge"
     },
     {
@@ -1621,7 +1621,7 @@
           "refId": "A"
         }
       ],
-      "title": "\u00f0\u009f\u0093\u0088 Taxa de Eventos",
+      "title": "ð Taxa de Eventos",
       "type": "timeseries"
     },
     {
@@ -1629,7 +1629,7 @@
         "type": "prometheus",
         "uid": "efa2xes2233swf"
       },
-      "description": "Disparos do Circuit Breaker na \u00c3\u009altima hora",
+      "description": "Disparos do Circuit Breaker na Ãltima hora",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1689,11 +1689,11 @@
             "uid": "efa2xes2233swf"
           },
           "expr": "increase(zpro_baileys_adaptive_circuit_breaker_trips_total[1h])",
-          "legendFormat": "\u00c3\u009altima Hora",
+          "legendFormat": "Ãltima Hora",
           "refId": "A"
         }
       ],
-      "title": "\u00f0\u009f\u0094\u008cCircuit Breaker - \u00c3\u009altima Hora",
+      "title": "ðCircuit Breaker - Ãltima Hora",
       "type": "stat"
     },
     {
@@ -1765,7 +1765,7 @@
           "refId": "A"
         }
       ],
-      "title": "\u00f0\u009f\u0094\u008c Circuit Breaker - Total",
+      "title": "ð Circuit Breaker - Total",
       "type": "stat"
     },
     {
@@ -1773,7 +1773,7 @@
         "type": "prometheus",
         "uid": "efa2xes2233swf"
       },
-      "description": "Hist\u00c3\u00b3rico de disparos do circuit breaker ao longo do tempo",
+      "description": "HistÃ³rico de disparos do circuit breaker ao longo do tempo",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1862,11 +1862,11 @@
             "uid": "efa2xes2233swf"
           },
           "expr": "increase(zpro_baileys_adaptive_circuit_breaker_trips_total[5m])",
-          "legendFormat": "Disparos (\u00c3\u00baltimos 5min)",
+          "legendFormat": "Disparos (Ãºltimos 5min)",
           "refId": "A"
         }
       ],
-      "title": "\u00f0\u009f\u0094\u008c Circuit Breaker - Hist\u00c3\u00b3rico",
+      "title": "ð Circuit Breaker - HistÃ³rico",
       "type": "timeseries"
     },
     {
@@ -1879,7 +1879,7 @@
       },
       "id": 103,
       "panels": [],
-      "title": "\u00f0\u009f\u0094\u0097 Conex\u00c3\u00b5es e Mensagens WhatsApp",
+      "title": "ð ConexÃµes e Mensagens WhatsApp",
       "type": "row"
     },
     {
@@ -1887,7 +1887,7 @@
         "type": "prometheus",
         "uid": "efa2xes2233swf"
       },
-      "description": "N\u00c3\u00bamero de conex?es WhatsApp ativas",
+      "description": "NÃºmero de conex?es WhatsApp ativas",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1946,11 +1946,11 @@
             "uid": "efa2xes2233swf"
           },
           "expr": "zpro_baileys_active_connections",
-          "legendFormat": "Conex\u00c3\u00b5es WhatsApp",
+          "legendFormat": "ConexÃµes WhatsApp",
           "refId": "A"
         }
       ],
-      "title": "\u00f0\u009f\u0094\u0097 Conex\u00c3\u00b5es Ativas",
+      "title": "ð ConexÃµes Ativas",
       "type": "stat"
     },
     {
@@ -2014,7 +2014,7 @@
           "refId": "A"
         }
       ],
-      "title": "\u00f0\u009f\u0093\u00a8 Total de Mensagens Recebidas",
+      "title": "ð¨ Total de Mensagens Recebidas",
       "type": "stat"
     },
     {
@@ -2077,7 +2077,7 @@
           "refId": "A"
         }
       ],
-      "title": "\u00f0\u009f\u0093\u00a4 Total de Mensagens Enviadas",
+      "title": "ð¤ Total de Mensagens Enviadas",
       "type": "stat"
     },
     {
@@ -2090,7 +2090,7 @@
       },
       "id": 104,
       "panels": [],
-      "title": "\u00f0\u009f\u0093\u008a Painel PM2 Style - M\u00c3\u00a9tricas Heap e Node.js",
+      "title": "ð Painel PM2 Style - MÃ©tricas Heap e Node.js",
       "type": "row"
     },
     {
@@ -2162,7 +2162,7 @@
           "refId": "A"
         }
       ],
-      "title": "\u00f0\u009f\u0092\u00be Used Heap Size",
+      "title": "ð¾ Used Heap Size",
       "type": "stat"
     },
     {
@@ -2236,7 +2236,7 @@
           "refId": "A"
         }
       ],
-      "title": "\u00f0\u009f\u0093\u008a Heap Usage %",
+      "title": "ð Heap Usage %",
       "type": "stat"
     },
     {
@@ -2300,7 +2300,7 @@
           "refId": "A"
         }
       ],
-      "title": "\u00f0\u009f\u0092\u00be Heap Size (Total)",
+      "title": "ð¾ Heap Size (Total)",
       "type": "stat"
     },
     {
@@ -2308,7 +2308,7 @@
         "type": "prometheus",
         "uid": "efa2xes2233swf"
       },
-      "description": "Lat\u00c3\u00aancia do Event Loop (m\u00c3\u00a9dia)",
+      "description": "LatÃªncia do Event Loop (mÃ©dia)",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2373,7 +2373,7 @@
           "refId": "A"
         }
       ],
-      "title": "\u00e2\u009a?Event Loop Latency",
+      "title": "â?Event Loop Latency",
       "type": "stat"
     },
     {
@@ -2381,7 +2381,7 @@
         "type": "prometheus",
         "uid": "efa2xes2233swf"
       },
-      "description": "Lat\u00c3\u00aancia do Event Loop no percentil 95",
+      "description": "LatÃªncia do Event Loop no percentil 95",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2445,7 +2445,7 @@
           "refId": "A"
         }
       ],
-      "title": "\u00e2\u009a?Event Loop Latency p95",
+      "title": "â?Event Loop Latency p95",
       "type": "stat"
     },
     {
@@ -2453,7 +2453,7 @@
         "type": "prometheus",
         "uid": "efa2xes2233swf"
       },
-      "description": "N\u00c3\u00bamero de handles ativos no Node.js",
+      "description": "NÃºmero de handles ativos no Node.js",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2516,7 +2516,7 @@
           "refId": "A"
         }
       ],
-      "title": "\u00f0\u009f\u0094\u00a7 Active Handles",
+      "title": "ð§ Active Handles",
       "type": "stat"
     },
     {
@@ -2524,7 +2524,7 @@
         "type": "prometheus",
         "uid": "efa2xes2233swf"
       },
-      "description": "N\u00c3\u00bamero de requisi\u00f0\u009f\u0093\u0081es ativas no Node.js",
+      "description": "NÃºmero de requisiðes ativas no Node.js",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2587,7 +2587,7 @@
           "refId": "A"
         }
       ],
-      "title": "\u00f0\u009f\u0094\u00a7 Active Requests",
+      "title": "ð§ Active Requests",
       "type": "stat"
     },
     {
@@ -2595,7 +2595,7 @@
         "type": "prometheus",
         "uid": "efa2xes2233swf"
       },
-      "description": "Mem\u00c3\u00b3ria Residente (RSS) do processo",
+      "description": "MemÃ³ria Residente (RSS) do processo",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2659,7 +2659,7 @@
           "refId": "A"
         }
       ],
-      "title": "\u00f0\u009f\u0093\u008a Mem\u00c3\u00b3ria (RSS)",
+      "title": "ð MemÃ³ria (RSS)",
       "type": "stat"
     },
     {
@@ -2734,7 +2734,7 @@
           "refId": "A"
         }
       ],
-      "title": "\u00f0\u009f\u0093\u0081 CPU Usage %",
+      "title": "ð CPU Usage %",
       "type": "stat"
     },
     {
@@ -2742,7 +2742,7 @@
         "type": "prometheus",
         "uid": "efa2xes2233swf"
       },
-      "description": "Mem\u00c3\u00b3ria Virtual do processo",
+      "description": "MemÃ³ria Virtual do processo",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2798,7 +2798,7 @@
           "refId": "A"
         }
       ],
-      "title": "\u00f0\u009f\u0093\u008a Mem\u00c3\u00b3ria Virtual",
+      "title": "ð MemÃ³ria Virtual",
       "type": "stat"
     },
     {
@@ -2806,7 +2806,7 @@
         "type": "prometheus",
         "uid": "efa2xes2233swf"
       },
-      "description": "Tempo que o processo est\u00c3\u00a1 rodando",
+      "description": "Tempo que o processo estÃ¡ rodando",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2933,7 +2933,7 @@
           "refId": "A"
         }
       ],
-      "title": "\u00f0\u009f\u0093\u0081 File Descriptors",
+      "title": "ð File Descriptors",
       "type": "stat"
     },
     {
@@ -2946,7 +2946,7 @@
       },
       "id": 105,
       "panels": [],
-      "title": "\u00f0\u009f\u0093\u008a M\u00c3\u00a9tricas Detalhadas Node.js",
+      "title": "ð MÃ©tricas Detalhadas Node.js",
       "type": "row"
     },
     {
@@ -3043,7 +3043,7 @@
             "uid": "efa2xes2233swf"
           },
           "expr": "zpro_baileys_nodejs_eventloop_lag_min_seconds * 1000",
-          "legendFormat": "M\u00c3\u00adnimo",
+          "legendFormat": "MÃ­nimo",
           "refId": "A"
         },
         {
@@ -3052,7 +3052,7 @@
             "uid": "efa2xes2233swf"
           },
           "expr": "zpro_baileys_nodejs_eventloop_lag_mean_seconds * 1000",
-          "legendFormat": "M\u00c3\u00a9dia",
+          "legendFormat": "MÃ©dia",
           "refId": "B"
         },
         {
@@ -3061,7 +3061,7 @@
             "uid": "efa2xes2233swf"
           },
           "expr": "zpro_baileys_nodejs_eventloop_lag_max_seconds * 1000",
-          "legendFormat": "M\u00c3\u00a1ximo",
+          "legendFormat": "MÃ¡ximo",
           "refId": "C"
         },
         {
@@ -3092,7 +3092,7 @@
           "refId": "F"
         }
       ],
-      "title": "\u00e2\u009a?Event Loop Lag - Percentis Detalhados",
+      "title": "â?Event Loop Lag - Percentis Detalhados",
       "type": "timeseries"
     },
     {
@@ -3100,7 +3100,7 @@
         "type": "prometheus",
         "uid": "efa2xes2233swf"
       },
-      "description": "Handles e Requisi\u00f0\u009f\u0093\u0081es Node.js",
+      "description": "Handles e Requisiðes Node.js",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -3201,7 +3201,7 @@
           "refId": "B"
         }
       ],
-      "title": "\u00f0\u009f\u0093\u0081 Handles e Requests Ativos",
+      "title": "ð Handles e Requests Ativos",
       "type": "timeseries"
     }
   ],
@@ -3212,7 +3212,7 @@
     "rbaileys",
     "whatsapp",
     "zpro",
-    "portugu\u00c3\u00aas",
+    "portuguÃªs",
     "final-v2"
   ],
   "templating": {
