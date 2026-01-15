@@ -409,10 +409,8 @@ export const makeSocket = (config: SocketConfig) => {
 			logger.trace({ err }, 'Failed to record disconnection metrics')
 		}
 
-		ev.removeAllListeners('connection.update')
-
 		// Destroy event buffer to prevent orphaned timers and memory leaks
-		// This stops auto-flush timers and cleans up all buffer resources
+		// This stops auto-flush timers, cleans up all listeners, and prevents orphaned buffers
 		ev.destroy()
 		logger.debug('event buffer destroyed after connection close')
 	}

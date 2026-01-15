@@ -11,14 +11,20 @@ import makeWASocket, {
 import type { SocketConfig, WASocket } from '../src/Types'
 
 /**
- * ✅ VERSÃO CORRIGIDA - Connection Manager Seguro
+ * ✅ Connection Manager Seguro - Versão Melhorada
  *
- * Correções aplicadas:
- * 1. ✅ Cleanup de socket anterior antes de criar novo
- * 2. ✅ Remoção de event listeners
- * 3. ✅ Suporte multi-tenant (múltiplas conexões)
- * 4. ✅ Proteção contra race conditions
- * 5. ✅ Gerenciamento de lifecycle completo
+ * Melhorias críticas aplicadas:
+ * 1. ✅ closeSocket() - Fecha socket explicitamente antes de criar novo
+ * 2. ✅ pendingManualClose - Diferencia close intencional de desconexão
+ * 3. ✅ isStarting flag - Previne múltiplas inicializações simultâneas
+ * 4. ✅ Cleanup automático de socket anterior (previne sockets órfãos)
+ * 5. ✅ Suporte multi-tenant (múltiplas conexões independentes)
+ * 6. ✅ Circuit breaker por tenant (previne loops de reconexão)
+ * 7. ✅ Backoff exponencial com jitter (reduz thundering herd)
+ * 8. ✅ Logs detalhados para debugging
+ *
+ * Trabalha em conjunto com ev.destroy() (implementado no core) para garantir
+ * que tanto sockets quanto buffers sejam limpos corretamente.
  */
 
 const logger = P({ timestamp: () => `,"time":"${new Date().toJSON()}"` })
@@ -32,12 +38,14 @@ const reconnectRetryConfig: Pick<SocketConfig, 'retryBackoffDelays' | 'retryJitt
 
 /**
  * ✅ Connection Manager para UMA instância/tenant
- * Gerencia lifecycle completo de um socket
+ * Gerencia lifecycle completo de um socket com todas as proteções necessárias
  */
 class ConnectionManager {
 	private socket: WASocket | null = null
 	private reconnectAttempts = 0
 	private isReconnectScheduled = false
+	private isStarting = false
+	private pendingManualClose = 0
 	private reconnectTimer: NodeJS.Timeout | null = null
 	private isDestroyed = false
 	private circuitBreaker: CircuitBreaker
@@ -56,60 +64,80 @@ class ConnectionManager {
 		})
 
 		this.msgRetryCache = new NodeCache()
+
+		logger.info({ tenantId }, '✅ Connection manager initialized')
 	}
 
 	/**
-	 * ✅ CRÍTICO: Limpa socket anterior antes de criar novo
+	 * ✅ CRÍTICO: Fecha socket explicitamente antes de criar novo
+	 * Previne sockets órfãos que continuam rodando em background
 	 */
-	private async cleanupSocket() {
-		if (!this.socket) return
+	private closeSocket(reason?: string) {
+		if (!this.socket) {
+			logger.debug({ tenantId: this.tenantId }, 'closeSocket: no socket to close')
+			return
+		}
 
-		logger.info({ tenantId: this.tenantId }, '🧹 Cleaning up old socket before reconnect')
+		this.pendingManualClose += 1
+		logger.info({
+			tenantId: this.tenantId,
+			reason,
+			pendingManualClose: this.pendingManualClose
+		}, '🔌 Closing socket intentionally')
 
 		try {
-			// 1. Para reconexão agendada
-			if (this.reconnectTimer) {
-				clearTimeout(this.reconnectTimer)
-				this.reconnectTimer = null
-			}
-
-			// 2. Remove todos os event listeners
-			this.socket.ev.removeAllListeners()
-
-			// 3. Fecha conexão WebSocket se existir
-			if (this.socket.ws) {
+			// Usa socket.end() se disponível, caso contrário fecha WebSocket diretamente
+			if (typeof (this.socket as any).end === 'function') {
+				(this.socket as any).end(reason ? new Error(reason) : undefined)
+			} else if (this.socket.ws) {
 				this.socket.ws.close()
 			}
 
-			// 4. Limpa referência
-			this.socket = null
-
+			// Remove listeners para prevenir memory leak
+			this.socket.ev.removeAllListeners()
 		} catch (error) {
-			logger.error({ tenantId: this.tenantId, error }, '⚠️ Error during socket cleanup')
+			logger.warn({ tenantId: this.tenantId, error }, '⚠️ Failed to close socket cleanly')
+		} finally {
+			this.socket = null
 		}
 	}
 
 	/**
-	 * ✅ Inicia socket com cleanup automático
+	 * ✅ Inicia socket com todas as proteções
 	 */
 	async start() {
-		// ✅ Previne race condition: apenas uma inicialização por vez
-		if (this.socket && this.socket.ws?.readyState === this.socket.ws?.OPEN) {
+		// Proteção 1: Previne múltiplas inicializações simultâneas
+		if (this.isStarting) {
+			logger.warn({ tenantId: this.tenantId }, '⚠️ Start already in progress, skipping')
+			return
+		}
+
+		// Proteção 2: Verifica se já está conectado
+		if (this.socket?.ws?.readyState === 1) { // WebSocket.OPEN = 1
 			logger.warn({ tenantId: this.tenantId }, '⚠️ Socket already connected, skipping start')
 			return
 		}
 
-		// ✅ CRÍTICO: Limpa socket anterior antes de criar novo
-		await this.cleanupSocket()
-
+		// Proteção 3: Verifica se foi destruído
 		if (this.isDestroyed) {
 			logger.warn({ tenantId: this.tenantId }, '⚠️ Manager destroyed, skipping start')
 			return
 		}
 
+		this.isStarting = true
+		logger.info({
+			tenantId: this.tenantId,
+			reconnectAttempts: this.reconnectAttempts
+		}, '🚀 Starting socket connection')
+
+		// ✅ CRÍTICO: Fecha socket anterior antes de criar novo
+		this.closeSocket('starting new connection')
+
 		try {
 			const { state, saveCreds } = await useMultiFileAuthState(this.authPath)
 			const { version } = await fetchLatestBaileysVersion()
+
+			logger.debug({ tenantId: this.tenantId, version }, 'Fetched Baileys version')
 
 			// ✅ Cria NOVO socket apenas após cleanup completo
 			this.socket = makeWASocket({
@@ -122,6 +150,8 @@ class ConnectionManager {
 				},
 				msgRetryCounterCache: this.msgRetryCache
 			})
+
+			logger.debug({ tenantId: this.tenantId }, 'Socket instance created, registering event handlers')
 
 			// ✅ Registra event listeners no socket NOVO
 			this.socket.ev.process(async(events) => {
@@ -140,6 +170,8 @@ class ConnectionManager {
 			logger.error({ tenantId: this.tenantId, error }, '❌ Failed to start socket')
 			this.circuitBreaker.recordFailure(error as Error)
 			this.scheduleReconnect()
+		} finally {
+			this.isStarting = false
 		}
 	}
 
@@ -153,15 +185,35 @@ class ConnectionManager {
 			// ✅ Conexão aberta: reseta contadores
 			this.reconnectAttempts = 0
 			this.circuitBreaker.recordSuccess()
-			logger.info({ tenantId: this.tenantId }, '🟢 Connection opened, counters reset')
+			logger.info({
+				tenantId: this.tenantId,
+				circuitState: this.circuitBreaker.getStats().state
+			}, '🟢 Connection opened, counters reset')
 		}
 
 		if (connection === 'close') {
+			// ✅ CRÍTICO: Diferencia close intencional de desconexão real
+			if (this.pendingManualClose > 0) {
+				this.pendingManualClose -= 1
+				logger.info({
+					tenantId: this.tenantId,
+					remainingPendingCloses: this.pendingManualClose
+				}, '🔌 Socket closed intentionally, skipping reconnect')
+				return
+			}
+
 			const statusCode = (lastDisconnect?.error as any)?.output?.statusCode
 			const isLoggedOut = statusCode === DisconnectReason.loggedOut
 
+			logger.warn({
+				tenantId: this.tenantId,
+				statusCode,
+				isLoggedOut,
+				error: lastDisconnect?.error?.message
+			}, '🔴 Connection closed')
+
 			if (isLoggedOut) {
-				logger.warn({ tenantId: this.tenantId }, '🔴 Logged out: will not reconnect')
+				logger.warn({ tenantId: this.tenantId }, '🚪 Logged out: will not reconnect')
 				await this.destroy()
 				return
 			}
@@ -169,11 +221,6 @@ class ConnectionManager {
 			// ✅ Registra falha no circuit breaker
 			this.circuitBreaker.recordFailure(
 				new Error(`disconnect: ${statusCode ?? 'unknown'}`)
-			)
-
-			logger.warn(
-				{ tenantId: this.tenantId, statusCode },
-				'🔴 Connection closed, scheduling reconnect'
 			)
 
 			// ✅ Agenda reconexão com backoff + circuit breaker
@@ -203,7 +250,12 @@ class ConnectionManager {
 		if (!canReconnect) {
 			const waitMs = breakerStats.timeUntilHalfOpen || 30_000
 			logger.warn(
-				{ tenantId: this.tenantId, waitMs, state: breakerStats.state },
+				{
+					tenantId: this.tenantId,
+					waitMs,
+					state: breakerStats.state,
+					failures: breakerStats.failureCount
+				},
 				'⏸️ Circuit breaker OPEN, delaying reconnect'
 			)
 
@@ -245,10 +297,29 @@ class ConnectionManager {
 	 * ✅ Destrói manager completamente (logout, shutdown, etc)
 	 */
 	async destroy() {
+		if (this.isDestroyed) {
+			logger.debug({ tenantId: this.tenantId }, 'destroy() called on already destroyed manager')
+			return
+		}
+
 		logger.info({ tenantId: this.tenantId }, '💀 Destroying connection manager')
 		this.isDestroyed = true
-		await this.cleanupSocket()
-		this.msgRetryCache.close?.()
+
+		// Para timer de reconexão
+		if (this.reconnectTimer) {
+			clearTimeout(this.reconnectTimer)
+			this.reconnectTimer = null
+		}
+
+		// Fecha socket
+		this.closeSocket('manager destroyed')
+
+		// Limpa cache
+		if (this.msgRetryCache && typeof this.msgRetryCache.close === 'function') {
+			this.msgRetryCache.close()
+		}
+
+		logger.info({ tenantId: this.tenantId }, '✅ Connection manager destroyed')
 	}
 
 	/**
@@ -262,7 +333,14 @@ class ConnectionManager {
 	 * ✅ Verifica se está conectado
 	 */
 	isConnected(): boolean {
-		return this.socket?.ws?.readyState === this.socket?.ws?.OPEN
+		return this.socket?.ws?.readyState === 1 // WebSocket.OPEN = 1
+	}
+
+	/**
+	 * ✅ Obtém estatísticas do circuit breaker
+	 */
+	getCircuitBreakerStats() {
+		return this.circuitBreaker.getStats()
 	}
 }
 
@@ -277,15 +355,17 @@ class MultiTenantConnectionManager {
 	 */
 	async addTenant(tenantId: string, authPath: string) {
 		if (this.managers.has(tenantId)) {
-			logger.warn({ tenantId }, '⚠️ Tenant already exists')
-			return
+			logger.warn({ tenantId }, '⚠️ Tenant already exists, returning existing manager')
+			return this.managers.get(tenantId)!
 		}
 
+		logger.info({ tenantId, authPath }, '➕ Adding new tenant')
 		const manager = new ConnectionManager(tenantId, authPath)
 		this.managers.set(tenantId, manager)
 		await manager.start()
 
 		logger.info({ tenantId }, '✅ Tenant added and started')
+		return manager
 	}
 
 	/**
@@ -298,6 +378,7 @@ class MultiTenantConnectionManager {
 			return
 		}
 
+		logger.info({ tenantId }, '➖ Removing tenant')
 		await manager.destroy()
 		this.managers.delete(tenantId)
 		logger.info({ tenantId }, '✅ Tenant removed')
@@ -311,14 +392,30 @@ class MultiTenantConnectionManager {
 	}
 
 	/**
+	 * ✅ Obtém manager de um tenant específico
+	 */
+	getManager(tenantId: string): ConnectionManager | undefined {
+		return this.managers.get(tenantId)
+	}
+
+	/**
 	 * ✅ Lista todos os tenants e status
 	 */
 	getStatus() {
-		const status: Array<{ tenantId: string; connected: boolean }> = []
+		const status: Array<{
+			tenantId: string
+			connected: boolean
+			circuitState: string
+			reconnectAttempts: number
+		}> = []
+
 		for (const [tenantId, manager] of this.managers.entries()) {
+			const stats = manager.getCircuitBreakerStats()
 			status.push({
 				tenantId,
-				connected: manager.isConnected()
+				connected: manager.isConnected(),
+				circuitState: stats.state,
+				reconnectAttempts: (manager as any).reconnectAttempts || 0
 			})
 		}
 		return status
@@ -328,10 +425,11 @@ class MultiTenantConnectionManager {
 	 * ✅ Destrói todos os tenants (shutdown da aplicação)
 	 */
 	async destroyAll() {
-		logger.info('💀 Destroying all tenants')
+		logger.info({ count: this.managers.size }, '💀 Destroying all tenants')
 		const promises = Array.from(this.managers.values()).map(m => m.destroy())
 		await Promise.all(promises)
 		this.managers.clear()
+		logger.info('✅ All tenants destroyed')
 	}
 }
 
@@ -340,10 +438,18 @@ const globalManager = new MultiTenantConnectionManager()
 
 // ✅ Inicia múltiplas conexões (simula Z-PRO com 4 conexões)
 ;(async() => {
-	await globalManager.addTenant('infinite-store', 'baileys_auth_infinite')
-	await globalManager.addTenant('secundaria-mx', 'baileys_auth_secundaria')
-	await globalManager.addTenant('linea-4', 'baileys_auth_linea4')
-	await globalManager.addTenant('wp-principal', 'baileys_auth_principal')
+	logger.info('🚀 Starting multi-tenant connection manager example')
+
+	try {
+		await globalManager.addTenant('infinite-store', 'baileys_auth_infinite')
+		await globalManager.addTenant('secundaria-mx', 'baileys_auth_secundaria')
+		await globalManager.addTenant('linea-4', 'baileys_auth_linea4')
+		await globalManager.addTenant('wp-principal', 'baileys_auth_principal')
+
+		logger.info('✅ All tenants initialized')
+	} catch (error) {
+		logger.error({ error }, '❌ Failed to initialize tenants')
+	}
 
 	// ✅ Monitoramento: mostra status a cada 30 segundos
 	setInterval(() => {
@@ -352,35 +458,57 @@ const globalManager = new MultiTenantConnectionManager()
 	}, 30_000)
 
 	// ✅ Exemplo: enviar mensagem usando socket de tenant específico
-	const socket = globalManager.getSocket('infinite-store')
-	if (socket) {
-		// socket.sendMessage(...) etc
-	}
+	setTimeout(() => {
+		const socket = globalManager.getSocket('infinite-store')
+		if (socket) {
+			logger.info('💬 Socket available for messaging')
+			// socket.sendMessage(...) etc
+		} else {
+			logger.warn('⚠️ Socket not available')
+		}
+	}, 5000)
 })()
 
 // ✅ Shutdown graceful
 process.on('SIGINT', async() => {
-	logger.info('🛑 Shutting down...')
+	logger.info('🛑 Received SIGINT, shutting down...')
+	await globalManager.destroyAll()
+	process.exit(0)
+})
+
+process.on('SIGTERM', async() => {
+	logger.info('🛑 Received SIGTERM, shutting down...')
 	await globalManager.destroyAll()
 	process.exit(0)
 })
 
 /**
- * ✅ RESUMO DAS CORREÇÕES:
+ * ✅ RESUMO DAS MELHORIAS CRÍTICAS:
  *
- * 1. ✅ cleanupSocket(): Destrói socket anterior antes de criar novo
- * 2. ✅ removeAllListeners(): Previne memory leak
- * 3. ✅ Multi-tenant support: Gerencia N conexões independentes
- * 4. ✅ Race condition protection: isReconnectScheduled + timer cleanup
- * 5. ✅ Lifecycle management: destroy() completo para shutdown
- * 6. ✅ getSocket(): API segura para enviar mensagens
- * 7. ✅ getStatus(): Monitoramento de todas as conexões
- * 8. ✅ Circuit breaker POR tenant (independente)
- * 9. ✅ Backoff exponencial POR tenant (independente)
- * 10. ✅ Graceful shutdown (SIGINT handler)
+ * 1. ✅ closeSocket() com pendingManualClose counter
+ *    - Fecha socket explicitamente antes de criar novo
+ *    - Diferencia close intencional de desconexão
+ *    - Previne reconexão desnecessária em close intencional
  *
- * ✅ IMPACTO NO SEU PROBLEMA:
- * - Antes: 5 conexões + 15 reconexões = 20 sockets = 240 flushes/min
- * - Depois: 5 conexões + cleanup automático = 5 sockets = 60 flushes/min
- * - Redução: 75% na taxa de flush durante instabilidade!
+ * 2. ✅ isStarting flag
+ *    - Previne múltiplas inicializações simultâneas
+ *    - Protege contra race conditions
+ *
+ * 3. ✅ Logs detalhados em todas as operações
+ *    - Facilita debugging em produção
+ *    - Rastreia lifecycle completo do socket
+ *
+ * 4. ✅ Circuit breaker stats expostos
+ *    - Permite monitoramento externo
+ *    - Facilita troubleshooting
+ *
+ * 5. ✅ Multi-tenant robusto
+ *    - Cada tenant com seu próprio circuit breaker
+ *    - Isolamento completo entre conexões
+ *    - Shutdown graceful de todos os tenants
+ *
+ * ✅ TRABALHA EM CONJUNTO COM ev.destroy():
+ * - Connection Manager: fecha SOCKET antes de criar novo
+ * - ev.destroy(): fecha BUFFER quando socket fecha
+ * - Resultado: Zero sockets órfãos + zero buffers órfãos = taxa de flush consistente
  */
