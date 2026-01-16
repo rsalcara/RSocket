@@ -415,7 +415,7 @@ export const makeSocket = (config: SocketConfig) => {
 		logger.debug('event buffer destroyed after connection close')
 	}
 
-	const waitForSocketOpen = async () => {
+	const waitForSocketOpen = async (timeoutMs = connectTimeoutMs) => {
 		if (ws.isOpen) {
 			return
 		}
@@ -426,17 +426,53 @@ export const makeSocket = (config: SocketConfig) => {
 
 		let onOpen: () => void
 		let onClose: (err: Error) => void
-		await new Promise((resolve, reject) => {
-			onOpen = () => resolve(undefined)
-			onClose = mapWebSocketError(reject)
-			ws.on('open', onOpen)
-			ws.on('close', onClose)
-			ws.on('error', onClose)
-		}).finally(() => {
+		const startTime = Date.now()
+
+		try {
+			await promiseTimeout<void>(timeoutMs, (resolve, reject) => {
+				onOpen = () => resolve(undefined)
+				onClose = mapWebSocketError(reject)
+				ws.on('open', onOpen)
+				ws.on('close', onClose)
+				ws.on('error', onClose)
+			})
+		} catch (error) {
+			// Handle timeout specifically
+			if (error?.output?.statusCode === DisconnectReason.timedOut) {
+				const elapsedMs = Date.now() - startTime
+
+				// Log with comprehensive context
+				logger.warn(
+					{
+						timeoutMs,
+						elapsedMs,
+						isOpen: ws.isOpen,
+						isClosed: ws.isClosed,
+						isClosing: ws.isClosing,
+						readyState: ws.readyState,
+						url: ws.url
+					},
+					'socket open timeout: connection stuck in limbo state'
+				)
+
+				// Record Prometheus metric for socket timeout
+				try {
+					const prometheus = getPrometheus()
+					if (prometheus?.isEnabled()) {
+						prometheus.recordConnectionError('socket_open_timeout')
+					}
+				} catch (err) {
+					logger.trace({ err }, 'Failed to record socket timeout metric')
+				}
+			}
+
+			throw error
+		} finally {
+			// Always cleanup listeners to prevent memory leaks
 			ws.off('open', onOpen)
 			ws.off('close', onClose)
 			ws.off('error', onClose)
-		})
+		}
 	}
 
 	const startKeepAliveRequest = () =>
