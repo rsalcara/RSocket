@@ -64,17 +64,17 @@ export const makeNoiseHandler = ({
 
 	const mixIntoKey = async (data: Uint8Array) => {
 		const [write, read] = await localHKDF(data)
-		salt = write
-		encKey = read
-		decKey = read
+		salt = write!
+		encKey = read!
+		decKey = read!
 		readCounter = 0
 		writeCounter = 0
 	}
 
 	const finishInit = async () => {
 		const [write, read] = await localHKDF(new Uint8Array(0))
-		encKey = write
-		decKey = read
+		encKey = write!
+		decKey = read!
 		hash = Buffer.from([])
 		readCounter = 0
 		writeCounter = 0
@@ -111,9 +111,36 @@ export const makeNoiseHandler = ({
 
 			const certDecoded = decrypt(serverHello!.payload!)
 
-			const { intermediate: certIntermediate } = proto.CertChain.decode(certDecoded)
+			const { intermediate: certIntermediate, leaf } = proto.CertChain.decode(certDecoded)
 
-			const { issuerSerial } = proto.CertChain.NoiseCertificate.Details.decode(certIntermediate!.details!)
+			// Verify leaf certificate
+			if (!leaf?.details || !leaf?.signature) {
+				throw new Boom('invalid noise leaf certificate', { statusCode: 400 })
+			}
+
+			// Verify intermediate certificate
+			if (!certIntermediate?.details || !certIntermediate?.signature) {
+				throw new Boom('invalid noise intermediate certificate', { statusCode: 400 })
+			}
+
+			const details = proto.CertChain.NoiseCertificate.Details.decode(certIntermediate.details)
+			const { issuerSerial } = details
+
+			// Verify leaf certificate signature
+			const verify = Curve.verify(details.key!, leaf.details, leaf.signature)
+			if (!verify) {
+				throw new Boom('noise certificate signature invalid', { statusCode: 400 })
+			}
+
+			// Verify intermediate certificate signature
+			const verifyIntermediate = Curve.verify(
+				WA_CERT_DETAILS.PUBLIC_KEY,
+				certIntermediate.details,
+				certIntermediate.signature
+			)
+			if (!verifyIntermediate) {
+				throw new Boom('noise intermediate certificate signature invalid', { statusCode: 400 })
+			}
 
 			if (issuerSerial !== WA_CERT_DETAILS.SERIAL) {
 				throw new Boom('certification match failed', { statusCode: 400 })
