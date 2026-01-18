@@ -5,11 +5,13 @@ import Long from 'long'
 import { proto } from '../../WAProto'
 import { DEFAULT_CACHE_TTLS, DEFAULT_CACHE_MAX_KEYS, KEY_BUNDLE_TYPE, MIN_PREKEY_COUNT } from '../Defaults'
 import type {
+	GroupParticipant,
 	MessageReceiptType,
 	MessageRelayOptions,
 	MessageUserReceipt,
 	SocketConfig,
 	WACallEvent,
+	WAMessage,
 	WAMessageKey,
 	WAPatchName,
 	WAPresence,
@@ -30,6 +32,7 @@ import {
 	derivePairingCodeKey,
 	encodeBigEndian,
 	encodeSignedDeviceIdentity,
+	extractAddressingContext,
 	getBackoffDelay,
 	getCallStatusFromNode,
 	getHistoryMsg,
@@ -60,6 +63,7 @@ import {
 	isJidStatusBroadcast,
 	isJidUser,
 	isLidUser,
+	isPnUser,
 	jidDecode,
 	jidNormalizedUser,
 	S_WHATSAPP_NET
@@ -68,7 +72,7 @@ import { extractGroupMetadata } from './groups'
 import { makeMessagesSocket } from './messages-send'
 
 export const makeMessagesRecvSocket = (config: SocketConfig) => {
-	const { logger, retryRequestDelayMs, maxMsgRetryCount, getMessage, shouldIgnoreJid } = config
+	const { logger, retryRequestDelayMs, maxMsgRetryCount, getMessage, shouldIgnoreJid, enableAutoSessionRecreation } = config
 	const sock = makeMessagesSocket(config)
 	const {
 		ev,
@@ -85,7 +89,8 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		relayMessage,
 		sendReceipt,
 		uploadPreKeys,
-		sendPeerDataOperationMessage
+		sendPeerDataOperationMessage,
+		messageRetryManager
 	} = sock
 
 	/** this mutex ensures that each retryRequest will wait for the previous one to finish */
@@ -525,15 +530,21 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		}
 	}
 
-	const handleGroupNotification = (participant: string, child: BinaryNode, msg: Partial<proto.IWebMessageInfo>) => {
-		const participantJid = getBinaryNodeChild(child, 'participant')?.attrs?.jid || participant
+	const handleGroupNotification = (fullNode: BinaryNode, child: BinaryNode, msg: Partial<WAMessage>) => {
+		// Extract participant info with LID/PN support
+		const actingParticipantLid = fullNode.attrs.participant
+		const actingParticipantPn = fullNode.attrs.participant_pn
+
+		const affectedParticipantLid = getBinaryNodeChild(child, 'participant')?.attrs?.jid || actingParticipantLid!
+		const affectedParticipantPn = getBinaryNodeChild(child, 'participant')?.attrs?.phone_number || actingParticipantPn!
+
 		switch (child?.tag) {
 			case 'create':
 				const metadata = extractGroupMetadata(child)
 
 				msg.messageStubType = WAMessageStubType.GROUP_CREATE
 				msg.messageStubParameters = [metadata.subject]
-				msg.key = { participant: metadata.owner }
+				msg.key = { participant: metadata.owner, participantAlt: metadata.ownerPn }
 
 				ev.emit('chats.upsert', [
 					{
@@ -545,7 +556,8 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 				ev.emit('groups.upsert', [
 					{
 						...metadata,
-						author: participant
+						author: actingParticipantLid,
+						authorPn: actingParticipantPn
 					}
 				])
 				break
@@ -571,16 +583,28 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 				const stubType = `GROUP_PARTICIPANT_${child.tag.toUpperCase()}`
 				msg.messageStubType = WAMessageStubType[stubType as keyof typeof WAMessageStubType]
 
-				const participants = getBinaryNodeChildren(child, 'participant').map(p => p.attrs.jid!)
+				const participants = getBinaryNodeChildren(child, 'participant').map(({ attrs }) => {
+					// Extract participant info with LID/PN mapping support
+					return {
+						id: attrs.jid!,
+						phoneNumber: isLidUser(attrs.jid) && isPnUser(attrs.phone_number) ? attrs.phone_number : undefined,
+						lid: isPnUser(attrs.jid) && isLidUser(attrs.lid) ? attrs.lid : undefined,
+						admin: (attrs.type || null) as GroupParticipant['admin']
+					}
+				})
+
 				if (
 					participants.length === 1 &&
-					areJidsSameUser(participants[0], participant) &&
+					// if recv. "remove" message and sender removed themselves, mark as left
+					(areJidsSameUser(participants[0]!.id, actingParticipantLid) ||
+						areJidsSameUser(participants[0]!.id, actingParticipantPn)) &&
 					child.tag === 'remove'
 				) {
 					msg.messageStubType = WAMessageStubType.GROUP_PARTICIPANT_LEAVE
 				}
 
-				msg.messageStubParameters = participants
+				// Serialize participant info as JSON for enhanced LID support
+				msg.messageStubParameters = participants.map(p => JSON.stringify(p))
 				break
 			case 'subject':
 				msg.messageStubType = WAMessageStubType.GROUP_CHANGE_SUBJECT
@@ -621,18 +645,25 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 				break
 			case 'created_membership_requests':
 				msg.messageStubType = WAMessageStubType.GROUP_MEMBERSHIP_JOIN_APPROVAL_REQUEST_NON_ADMIN_ADD
-				msg.messageStubParameters = [participantJid, 'created', child.attrs.request_method!]
+				msg.messageStubParameters = [
+					JSON.stringify({ lid: affectedParticipantLid, pn: affectedParticipantPn }),
+					'created',
+					child.attrs.request_method!
+				]
 				break
 			case 'revoked_membership_requests':
-				const isDenied = areJidsSameUser(participantJid, participant)
+				const isDenied = areJidsSameUser(affectedParticipantLid, actingParticipantLid)
 				msg.messageStubType = WAMessageStubType.GROUP_MEMBERSHIP_JOIN_APPROVAL_REQUEST_NON_ADMIN_ADD
-				msg.messageStubParameters = [participantJid, isDenied ? 'revoked' : 'rejected']
+				msg.messageStubParameters = [
+					JSON.stringify({ lid: affectedParticipantLid, pn: affectedParticipantPn }),
+					isDenied ? 'revoked' : 'rejected'
+				]
 				break
 		}
 	}
 
 	const processNotification = async (node: BinaryNode) => {
-		const result: Partial<proto.IWebMessageInfo> = {}
+		const result: Partial<WAMessage> = {}
 		const [child] = getAllBinaryNodeChildren(node)
 		const nodeType = node.attrs.type
 		const from = jidNormalizedUser(node.attrs.from)
@@ -659,7 +690,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 				await handleMexNewsletterNotification(node)
 				break
 			case 'w:gp2':
-				handleGroupNotification(node.attrs.participant, child!, result)
+				handleGroupNotification(node, child!, result)
 				break
 			case 'mediaretry':
 				const event = decodeMediaRetryNode(node)
@@ -1144,7 +1175,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 						}
 					}
 
-					cleanMessage(msg, authState.creds.me!.id)
+					cleanMessage(msg, authState.creds.me!.id, authState.creds.me!.lid)
 
 					// Log message received successfully
 					logMessage('received', {
@@ -1464,6 +1495,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		sendRetryRequest,
 		rejectCall,
 		fetchMessageHistory,
-		requestPlaceholderResend
+		requestPlaceholderResend,
+		messageRetryManager
 	}
 }

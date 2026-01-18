@@ -1,4 +1,3 @@
-import { chunk } from 'lodash'
 import { KEY_BUNDLE_TYPE } from '../Defaults'
 import type { SignalRepository } from '../Types'
 import type {
@@ -12,18 +11,30 @@ import type {
 import {
 	assertNodeErrorFree,
 	type BinaryNode,
+	type FullJid,
 	getBinaryNodeChild,
 	getBinaryNodeChildBuffer,
 	getBinaryNodeChildren,
 	getBinaryNodeChildUInt,
+	getServerFromDomainType,
 	jidDecode,
 	type JidWithDevice,
-	S_WHATSAPP_NET
+	S_WHATSAPP_NET,
+	WAJIDDomains
 } from '../WABinary'
 import type { DeviceListData, ParsedDeviceInfo, USyncQueryResultList } from '../WAUSync'
 import { Curve, generateSignalPubKey } from './crypto'
 import { encodeBigEndian } from './generics'
 import { convertlidDevice } from './messages'
+
+/** Local chunk function to avoid lodash dependency */
+function chunk<T>(array: T[], size: number): T[][] {
+	const chunks: T[][] = []
+	for (let i = 0; i < array.length; i += size) {
+		chunks.push(array.slice(i, i + size))
+	}
+	return chunks
+}
 
 
 export const createSignalIdentity = (wid: string, accountSignatureKey: Uint8Array): SignalIdentity => {
@@ -124,26 +135,45 @@ export const parseAndInjectE2ESessions = async (node: BinaryNode, repository: Si
 	}
 }
 
-export const extractDeviceJids = (result: USyncQueryResultList[], myJid: string, excludeZeroDevices: boolean, mylid?:string) => {
+export const extractDeviceJids = (
+	result: USyncQueryResultList[],
+	myJid: string,
+	myLid: string,
+	excludeZeroDevices: boolean
+) => {
 	const { user: myUser, device: myDevice } = jidDecode(myJid)!
-	const { user: mylidUser, device: melidDevice } = jidDecode(mylid)!
+	const myLidDecoded = jidDecode(myLid)
+	const myLidUser = myLidDecoded?.user
+	const myLidDevice = myLidDecoded?.device
 
-	const extracted: JidWithDevice[] = []
+	const extracted: FullJid[] = []
 
 	for (const userResult of result) {
 		const { devices, id } = userResult as { devices: ParsedDeviceInfo; id: string }
-		const { user } = jidDecode(id)!
+		const decoded = jidDecode(id)!,
+			{ user, server } = decoded
+		let { domainType } = decoded
 		const deviceList = devices?.deviceList as DeviceListData[]
-		if (Array.isArray(deviceList)) {
-			for (const { id: device, keyIndex } of deviceList) {
-				if (
-					(!excludeZeroDevices || device !== 0) && // if zero devices are not-excluded, or device is non zero
-					(myUser !== user || myDevice !== device) && // either different user or if me user, not this device
-					(mylidUser !== user || melidDevice !== device) &&
-					(device === 0 || !!keyIndex) // ensure that "key-index" is specified for "non-zero" devices, produces a bad req otherwise
-				) {
-					extracted.push({ user, device, jid:userResult.id })
+		if (!Array.isArray(deviceList)) continue
+		for (const { id: device, keyIndex, isHosted } of deviceList) {
+			if (
+				(!excludeZeroDevices || device !== 0) && // if zero devices are not-excluded, or device is non zero
+				((myUser !== user && myLidUser !== user) || myDevice !== device) && // either different user or if me user, not this device
+				(myLidUser !== user || myLidDevice !== device) && // also check LID user
+				(device === 0 || !!keyIndex) // ensure that "key-index" is specified for "non-zero" devices, produces a bad req otherwise
+			) {
+				// Handle hosted devices (upstream improvement)
+				if (isHosted) {
+					domainType = domainType === WAJIDDomains.LID ? WAJIDDomains.HOSTED_LID : WAJIDDomains.HOSTED
 				}
+
+				extracted.push({
+					user,
+					device,
+					domainType,
+					server: getServerFromDomainType(server, domainType),
+					jid: userResult.id
+				})
 			}
 		}
 	}

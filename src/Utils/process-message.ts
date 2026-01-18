@@ -6,6 +6,7 @@ import type {
 	CacheStore,
 	Chat,
 	GroupMetadata,
+	GroupParticipant,
 	LIDMapping,
 	ParticipantAction,
 	RequestJoinAction,
@@ -374,6 +375,18 @@ const processMessage = async (
 					}
 				])
 				break
+			case proto.Message.ProtocolMessage.Type.GROUP_MEMBER_LABEL_CHANGE:
+				const labelAssociationMsg = protocolMsg.memberLabel
+				if (labelAssociationMsg?.label) {
+					ev.emit('group.member-tag.update', {
+						groupId: chat.id!,
+						label: labelAssociationMsg.label,
+						participant: message.key.participant!,
+						participantAlt: message.key.participantAlt!,
+						messageTimestamp: Number(message.messageTimestamp)
+					})
+				}
+				break
 			case proto.Message.ProtocolMessage.Type.LID_MIGRATION_MAPPING_SYNC:
 				if (signalRepository) {
 					const encodedPayload = protocolMsg.lidMigrationMappingSyncMessage?.encodedMappingPayload
@@ -465,27 +478,41 @@ const processMessage = async (
 	} else if (message.messageStubType) {
 		const jid = message.key?.remoteJid!
 		//let actor = whatsappID (message.participant)
-		let participants: string[]
+		let participants: GroupParticipant[]
 		const emitParticipantsUpdate = (action: ParticipantAction) =>
-			ev.emit('group-participants.update', { id: jid, author: message.participant!, participants, action })
+			ev.emit('group-participants.update', {
+				id: jid,
+				author: message.key.participant!,
+				authorPn: message.key.participantAlt!,
+				participants,
+				action
+			})
 		const emitGroupUpdate = (update: Partial<GroupMetadata>) => {
-			ev.emit('groups.update', [{ id: jid, ...update, author: message.participant ?? undefined }])
+			ev.emit('groups.update', [{ id: jid, ...update, author: message.key.participant ?? undefined, authorPn: message.key.participantAlt }])
 		}
 
-		const emitGroupRequestJoin = (participant: string, action: RequestJoinAction, method: RequestJoinMethod) => {
-			ev.emit('group.join-request', { id: jid, author: message.participant!, participant, action, method: method! })
+		const emitGroupRequestJoin = (participant: LIDMapping, action: RequestJoinAction, method: RequestJoinMethod) => {
+			ev.emit('group.join-request', {
+				id: jid,
+				author: message.key.participant!,
+				authorPn: message.key.participantAlt!,
+				participant: participant.lid,
+				participantPn: participant.pn,
+				action,
+				method: method!
+			})
 		}
 
-		const participantsIncludesMe = () => participants.find(jid => areJidsSameUser(meId, jid))
+		const participantsIncludesMe = () => participants.find(p => areJidsSameUser(meId, p.phoneNumber)) // ADD SUPPORT FOR LID
 
 		switch (message.messageStubType) {
 			case WAMessageStubType.GROUP_PARTICIPANT_CHANGE_NUMBER:
-				participants = message.messageStubParameters || []
+				participants = message.messageStubParameters?.map((a: any) => JSON.parse(a as string)) || []
 				emitParticipantsUpdate('modify')
 				break
 			case WAMessageStubType.GROUP_PARTICIPANT_LEAVE:
 			case WAMessageStubType.GROUP_PARTICIPANT_REMOVE:
-				participants = message.messageStubParameters || []
+				participants = message.messageStubParameters?.map((a: any) => JSON.parse(a as string)) || []
 				emitParticipantsUpdate('remove')
 				// mark the chat read only if you left the group
 				if (participantsIncludesMe()) {
@@ -496,7 +523,7 @@ const processMessage = async (
 			case WAMessageStubType.GROUP_PARTICIPANT_ADD:
 			case WAMessageStubType.GROUP_PARTICIPANT_INVITE:
 			case WAMessageStubType.GROUP_PARTICIPANT_ADD_REQUEST_JOIN:
-				participants = message.messageStubParameters || []
+				participants = message.messageStubParameters?.map((a: any) => JSON.parse(a as string)) || []
 				if (participantsIncludesMe()) {
 					chat.readOnly = false
 				}
@@ -504,11 +531,11 @@ const processMessage = async (
 				emitParticipantsUpdate('add')
 				break
 			case WAMessageStubType.GROUP_PARTICIPANT_DEMOTE:
-				participants = message.messageStubParameters || []
+				participants = message.messageStubParameters?.map((a: any) => JSON.parse(a as string)) || []
 				emitParticipantsUpdate('demote')
 				break
 			case WAMessageStubType.GROUP_PARTICIPANT_PROMOTE:
-				participants = message.messageStubParameters || []
+				participants = message.messageStubParameters?.map((a: any) => JSON.parse(a as string)) || []
 				emitParticipantsUpdate('promote')
 				break
 			case WAMessageStubType.GROUP_CHANGE_ANNOUNCE:
@@ -541,8 +568,8 @@ const processMessage = async (
 				const approvalMode = message.messageStubParameters?.[0]
 				emitGroupUpdate({ joinApprovalMode: approvalMode === 'on' })
 				break
-			case WAMessageStubType.GROUP_MEMBERSHIP_JOIN_APPROVAL_REQUEST_NON_ADMIN_ADD:
-				const participant = message.messageStubParameters?.[0] as string
+			case WAMessageStubType.GROUP_MEMBERSHIP_JOIN_APPROVAL_REQUEST_NON_ADMIN_ADD: // TODO: Add other events
+				const participant = JSON.parse(message.messageStubParameters?.[0]) as LIDMapping
 				const action = message.messageStubParameters?.[1] as RequestJoinAction
 				const method = message.messageStubParameters?.[2] as RequestJoinMethod
 				emitGroupRequestJoin(participant, action, method)

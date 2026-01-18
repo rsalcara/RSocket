@@ -100,8 +100,8 @@ export const generateRegistrationNode = (
 		platformType: getPlatformType(config.browser[1]),
 		requireFullSync: config.syncFullHistory,
 		historySyncConfig: {
-			storageQuotaMb: 569150,
-			inlineInitialPayloadInE2EeMsg: false,
+			storageQuotaMb: 10240,
+			inlineInitialPayloadInE2EeMsg: true,
 			supportCallLogHistory: false,
 			supportBotUserAgentChatHistory: true,
 			supportCagReactionsAndPolls: true,
@@ -116,7 +116,6 @@ export const generateRegistrationNode = (
 			secondary: 15,
 			tertiary: 7
 		}
-
 	}
 
 	const companionProto = proto.DeviceProps.encode(companion).finish()
