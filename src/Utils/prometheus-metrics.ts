@@ -100,6 +100,12 @@ export class BaileysPrometheusMetrics {
 	// ============================================
 	public offlineNotificationsTotal?: Counter<string>
 
+	// ============================================
+	// CATEGORY 10: WEBSOCKET CONNECTION METRICS
+	// ============================================
+	public websocketConnectionsTotal?: Counter<string>
+	public websocketConnectionDuration?: Histogram<string>
+
 	constructor(logger: ILogger) {
 		this.logger = logger
 		this.config = this.loadConfig()
@@ -420,6 +426,23 @@ export class BaileysPrometheusMetrics {
 			registers: [this.registry]
 		})
 
+		// ============================================
+		// CATEGORY 10: WEBSOCKET CONNECTION METRICS
+		// ============================================
+		this.websocketConnectionsTotal = new Counter({
+			name: `${prefix}websocket_connections_total`,
+			help: 'Total number of WebSocket connection state changes',
+			labelNames: ['state'],
+			registers: [this.registry]
+		})
+
+		this.websocketConnectionDuration = new Histogram({
+			name: `${prefix}websocket_connection_duration_ms`,
+			help: 'WebSocket connection establishment duration in milliseconds',
+			buckets: [10, 50, 100, 250, 500, 1000, 2500, 5000, 10000],
+			registers: [this.registry]
+		})
+
 		// Start periodic system metrics collection
 		this.startSystemMetricsCollection()
 	}
@@ -718,6 +741,23 @@ export class BaileysPrometheusMetrics {
 	public recordOfflineNotifications(count: number): void {
 		if (!this.config.enabled) return
 		this.offlineNotificationsTotal?.inc(count)
+	}
+
+	/**
+	 * Record WebSocket connection state change
+	 * States: 'connecting', 'connected', 'closing', 'closed', 'error'
+	 */
+	public recordWebSocketConnection(state: 'connecting' | 'connected' | 'closing' | 'closed' | 'error'): void {
+		if (!this.config.enabled) return
+		this.websocketConnectionsTotal?.inc({ state })
+	}
+
+	/**
+	 * Record WebSocket connection establishment duration
+	 */
+	public recordWebSocketConnectionDuration(durationMs: number): void {
+		if (!this.config.enabled) return
+		this.websocketConnectionDuration?.observe(durationMs)
 	}
 
 	/**

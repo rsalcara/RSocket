@@ -49,6 +49,8 @@ export declare class BaileysPrometheusMetrics {
     preKeyUploadCount?: Counter<string>;
     lidMigrationTotal?: Counter<string>;
     offlineNotificationsTotal?: Counter<string>;
+    websocketConnectionsTotal?: Counter<string>;
+    websocketConnectionDuration?: Histogram<string>;
     constructor(logger: ILogger);
     /**
      * Load configuration from environment variables
@@ -180,6 +182,15 @@ export declare class BaileysPrometheusMetrics {
      * Record offline notifications processed
      */
     recordOfflineNotifications(count: number): void;
+    /**
+     * Record WebSocket connection state change
+     * States: 'connecting', 'connected', 'closing', 'closed', 'error'
+     */
+    recordWebSocketConnection(state: 'connecting' | 'connected' | 'closing' | 'closed' | 'error'): void;
+    /**
+     * Record WebSocket connection establishment duration
+     */
+    recordWebSocketConnectionDuration(durationMs: number): void;
     /**
      * Check if Prometheus is enabled
      */

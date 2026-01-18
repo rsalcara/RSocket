@@ -1,5 +1,19 @@
 import { Contact } from './Contact';
 export type WAConnectionState = 'open' | 'connecting' | 'close';
+/**
+ * Sync state machine for better sync handling
+ * Used to track the synchronization progress during connection
+ */
+export declare enum SyncState {
+    /** Initial state - connection is being established */
+    Connecting = "Connecting",
+    /** Connection open, waiting for initial sync notification */
+    AwaitingInitialSync = "AwaitingInitialSync",
+    /** Actively syncing app state */
+    Syncing = "Syncing",
+    /** Sync complete, fully online */
+    Online = "Online"
+}
 export type ConnectionState = {
     /** connection is now open, connecting or closed */
     connection: WAConnectionState;

@@ -1,5 +1,6 @@
 import WebSocket from 'ws'
 import { DEFAULT_ORIGIN } from '../../Defaults'
+import { getPrometheus } from '../../Utils/prometheus-metrics'
 import { AbstractSocketClient } from './types'
 
 /**
@@ -14,6 +15,7 @@ type WebSocketEventType = 'close' | 'error' | 'upgrade' | 'message' | 'open' | '
  * - Limited max listeners (prevents unbounded growth)
  * - Listener reference tracking (enables proper cleanup)
  * - Complete cleanup on close (prevents orphaned listeners)
+ * - Prometheus metrics for connection monitoring
  */
 export class WebSocketClient extends AbstractSocketClient {
 	protected socket: WebSocket | null = null
@@ -23,6 +25,11 @@ export class WebSocketClient extends AbstractSocketClient {
 	 * Key: event name, Value: listener function
 	 */
 	private eventListeners = new Map<WebSocketEventType, (...args: any[]) => void>()
+
+	/**
+	 * Track connection start time for metrics
+	 */
+	private connectionStartTime: number = 0
 
 	get isOpen(): boolean {
 		return this.socket?.readyState === WebSocket.OPEN
@@ -42,6 +49,13 @@ export class WebSocketClient extends AbstractSocketClient {
 		if (this.socket) {
 			return
 		}
+
+		// Track connection start time for metrics
+		this.connectionStartTime = Date.now()
+
+		// Prometheus: Track connection attempt
+		const prometheus = getPrometheus()
+		prometheus?.recordWebSocketConnection('connecting')
 
 		this.socket = new WebSocket(this.url, {
 			origin: DEFAULT_ORIGIN,
@@ -89,7 +103,20 @@ export class WebSocketClient extends AbstractSocketClient {
 		// Register listeners and store references for cleanup
 		for (const event of events) {
 			// Create named function (better for debugging than arrow function)
-			const listener = (...args: any[]) => this.emit(event, ...args)
+			const listener = (...args: any[]) => {
+				// Track specific events for metrics
+				if (event === 'open') {
+					const connectionDuration = Date.now() - this.connectionStartTime
+					prometheus?.recordWebSocketConnection('connected')
+					prometheus?.recordWebSocketConnectionDuration(connectionDuration)
+				} else if (event === 'error') {
+					prometheus?.recordWebSocketConnection('error')
+				} else if (event === 'close') {
+					prometheus?.recordWebSocketConnection('closed')
+				}
+
+				this.emit(event, ...args)
+			}
 
 			// Store reference for later removal
 			this.eventListeners.set(event, listener)
@@ -104,10 +131,19 @@ export class WebSocketClient extends AbstractSocketClient {
 			return
 		}
 
+		// Prometheus: Track disconnection
+		const prometheus = getPrometheus()
+		prometheus?.recordWebSocketConnection('closing')
+
 		/**
 		 * CRITICAL: Clean up ALL listeners before closing socket
 		 * This prevents memory leaks from orphaned listeners accumulating on reconnections
 		 */
+
+		// Create promise to wait for close event (from upstream)
+		const closePromise = new Promise<void>(resolve => {
+			this.socket?.once('close', resolve)
+		})
 
 		// Remove listeners using stored references (most precise method)
 		for (const [event, listener] of this.eventListeners.entries()) {
@@ -122,6 +158,9 @@ export class WebSocketClient extends AbstractSocketClient {
 
 		// Close the WebSocket connection
 		this.socket.close()
+
+		// Wait for close event to complete (from upstream)
+		await closePromise
 
 		// Clear socket reference
 		this.socket = null

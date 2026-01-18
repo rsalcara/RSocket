@@ -22,7 +22,9 @@ export declare const areJidsSameUser: (jid1: string | undefined, jid2: string | 
 export declare const isJidMetaIa: (jid: string | undefined) => boolean | undefined;
 /** is the jid a user */
 export declare const isJidUser: (jid: string | undefined) => boolean | undefined;
-/** is the jid a group */
+/** is the jid a PN user (alias for isJidUser) */
+export declare const isPnUser: (jid: string | undefined) => boolean | undefined;
+/** is the jid a LID */
 export declare const isLidUser: (jid: string | undefined) => boolean | undefined;
 /** is the jid a broadcast */
 export declare const isJidBroadcast: (jid: string | undefined) => boolean | undefined;

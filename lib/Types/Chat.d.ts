@@ -101,6 +101,18 @@ export type ChatModification = {
     addMessageLabel: MessageLabelAssociationActionBody;
 } | {
     removeMessageLabel: MessageLabelAssociationActionBody;
+} | {
+    disableLinkPreviews: {
+        isPreviewsDisabled: boolean;
+    };
+} | {
+    quickReply: {
+        shortcut?: string;
+        message?: string;
+        keywords?: string[];
+        timestamp?: string;
+        deleted?: boolean;
+    };
 };
 export type InitialReceivedChatsState = {
     [jid: string]: {
