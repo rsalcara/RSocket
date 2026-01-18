@@ -5,7 +5,7 @@ import { promises as fs } from 'fs'
 import { type Transform } from 'stream'
 import { proto } from '../../WAProto'
 import { MEDIA_KEYS, URL_REGEX, WA_DEFAULT_EPHEMERAL } from '../Defaults'
-import {
+import type {
 	AnyMediaMessageContent,
 	AnyMessageContent,
 	DownloadableMessage,
@@ -18,14 +18,14 @@ import {
 	WAMediaUpload,
 	WAMessage,
 	WAMessageContent,
-	WAMessageStatus,
-	WAProto,
+	WAMessageKey,
 	WATextMessage
 } from '../Types'
+import { WAMessageStatus, WAProto } from '../Types'
 import { isJidGroup, isJidNewsletter, isJidStatusBroadcast, jidNormalizedUser, jidDecode } from '../WABinary'
 import { sha256 } from './crypto'
 import { generateMessageIDV2, getKeyAuthor, unixTimestampSeconds } from './generics'
-import { ILogger } from './logger'
+import type { ILogger } from './logger'
 import {
 	downloadContentFromMessage,
 	encryptedStream,
@@ -33,7 +33,7 @@ import {
 	getAudioDuration,
 	getAudioWaveform,
 	getRawMediaUploadData,
-	MediaDownloadOptions
+	type MediaDownloadOptions
 } from './messages-media'
 
 type MediaUploadData = {
@@ -86,14 +86,14 @@ export const generateLinkPreviewIfRequired = async (
 		try {
 			const urlInfo = await getUrlInfo(url)
 			return urlInfo
-		} catch (error) {
+		} catch (error: any) {
 			// ignore if fails
 			logger?.warn({ trace: error.stack }, 'url generation failed')
 		}
 	}
 }
 
-const assertColor = async color => {
+const assertColor = async (color: any) => {
 	let assertedColor
 	if (typeof color === 'number') {
 		assertedColor = color > 0 ? color : 0xffffffff + Number(color) + 1
@@ -194,6 +194,10 @@ export const prepareWAMessageMedia = async (
 			delete obj.videoMessage
 		}
 
+		if (obj.stickerMessage) {
+			obj.stickerMessage.stickerSentTs = Date.now()
+		}
+
 		if (cacheableKey) {
 			logger?.debug({ cacheableKey }, 'set cache')
 			options.mediaCache!.set(cacheableKey, WAProto.Message.encode(obj).finish())
@@ -261,7 +265,7 @@ export const prepareWAMessageMedia = async (
 					uploadData.backgroundArgb = await assertColor(options.backgroundColor)
 					logger?.debug('computed backgroundColor audio status')
 				}
-			} catch (error) {
+			} catch (error: any) {
 				logger?.warn({ trace: error.stack }, 'failed to obtain extra info')
 			}
 		})()
@@ -788,6 +792,19 @@ export const updateMessageWithPollUpdate = (msg: Pick<WAMessage, 'pollUpdates'>,
 	msg.pollUpdates = reactions
 }
 
+/** Update the message with a new event response */
+export const updateMessageWithEventResponse = (
+	msg: Pick<WAMessage, 'eventResponses'>,
+	update: proto.IEventResponse
+) => {
+	const authorID = getKeyAuthor(update.eventResponseMessageKey)
+
+	const responses = (msg.eventResponses || []).filter(r => getKeyAuthor(r.eventResponseMessageKey) !== authorID)
+	responses.push(update)
+
+	msg.eventResponses = responses
+}
+
 type VoteAggregation = {
 	name: string
 	voters: string[]
@@ -844,8 +861,43 @@ export function getAggregateVotesInPollMessage(
 	return Object.values(voteHashMap)
 }
 
+type ResponseAggregation = {
+	response: string
+	responders: string[]
+}
+
+/**
+ * Aggregates all event responses in an event message.
+ * @param msg the event creation message
+ * @param meId your jid
+ * @returns A list of response types & their responders
+ */
+export function getAggregateResponsesInEventMessage(
+	{ eventResponses }: Pick<WAMessage, 'eventResponses'>,
+	meId?: string
+) {
+	const responseTypes = ['GOING', 'NOT_GOING', 'MAYBE']
+	const responseMap: { [_: string]: ResponseAggregation } = {}
+
+	for (const type of responseTypes) {
+		responseMap[type] = {
+			response: type,
+			responders: []
+		}
+	}
+
+	for (const update of eventResponses || []) {
+		const responseType = (update as any).eventResponse || 'UNKNOWN'
+		if (responseType !== 'UNKNOWN' && responseMap[responseType]) {
+			responseMap[responseType].responders.push(getKeyAuthor(update.eventResponseMessageKey, meId))
+		}
+	}
+
+	return Object.values(responseMap)
+}
+
 /** Given a list of message keys, aggregates them by chat & sender. Useful for sending read receipts in bulk */
-export const aggregateMessageKeysNotFromMe = (keys: proto.IMessageKey[]) => {
+export const aggregateMessageKeysNotFromMe = (keys: WAMessageKey[]) => {
 	const keyMap: { [id: string]: { jid: string; participant: string | undefined; messageIds: string[] } } = {}
 	for (const { remoteJid, id, participant, fromMe } of keys) {
 		if (!fromMe) {
@@ -884,8 +936,8 @@ export const downloadMediaMessage = async <Type extends 'buffer' | 'stream'>(
 	const result = await downloadMsg().catch(async error => {
 		if (
 			ctx &&
-			axios.isAxiosError(error) && // check if the message requires a reupload
-			REUPLOAD_REQUIRED_STATUS.includes(error.response?.status!)
+			(axios.isAxiosError(error) || typeof error?.status === 'number') && // check if the message requires a reupload
+			REUPLOAD_REQUIRED_STATUS.includes(error.response?.status ?? error.status)
 		) {
 			ctx.logger.info({ key: message.key }, 'sending reupload media request...')
 			// request reupload
