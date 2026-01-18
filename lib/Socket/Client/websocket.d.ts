@@ -7,6 +7,7 @@ import { AbstractSocketClient } from './types';
  * - Limited max listeners (prevents unbounded growth)
  * - Listener reference tracking (enables proper cleanup)
  * - Complete cleanup on close (prevents orphaned listeners)
+ * - Prometheus metrics for connection monitoring
  */
 export declare class WebSocketClient extends AbstractSocketClient {
     protected socket: WebSocket | null;
@@ -15,6 +16,10 @@ export declare class WebSocketClient extends AbstractSocketClient {
      * Key: event name, Value: listener function
      */
     private eventListeners;
+    /**
+     * Track connection start time for metrics
+     */
+    private connectionStartTime;
     get isOpen(): boolean;
     get isClosed(): boolean;
     get isClosing(): boolean;
