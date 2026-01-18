@@ -4,16 +4,18 @@ import { createHash, randomBytes } from 'crypto'
 import { platform, release } from 'os'
 import { proto } from '../../WAProto'
 import { version as baileysVersion } from '../Defaults/baileys-version.json'
-import {
+import type {
 	BaileysEventEmitter,
 	BaileysEventMap,
 	BrowsersMap,
 	ConnectionState,
-	DisconnectReason,
 	WACallUpdateType,
+	WAMessageKey,
 	WAVersion
 } from '../Types'
-import { BinaryNode, getAllBinaryNodeChildren, jidDecode } from '../WABinary'
+import { DisconnectReason } from '../Types'
+import { type BinaryNode, getAllBinaryNodeChildren, jidDecode } from '../WABinary'
+import { sha256 } from './crypto'
 
 const PLATFORM_MAP = {
 	aix: 'AIX',
@@ -41,7 +43,7 @@ export const getPlatformId = (browser: string) => {
 
 export const BufferJSON = {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	replacer: (k, value: any) => {
+	replacer: (k: any, value: any) => {
 		if (Buffer.isBuffer(value) || value instanceof Uint8Array || value?.type === 'Buffer') {
 			return { type: 'Buffer', data: Buffer.from(value?.data || value).toString('base64') }
 		}
@@ -50,18 +52,27 @@ export const BufferJSON = {
 	},
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	reviver: (_, value: any) => {
-		if (typeof value === 'object' && !!value && (value.buffer === true || value.type === 'Buffer')) {
-			const val = value.data || value.value
-			return typeof val === 'string' ? Buffer.from(val, 'base64') : Buffer.from(val || [])
+	reviver: (_: any, value: any) => {
+		if (typeof value === 'object' && value !== null && value.type === 'Buffer' && typeof value.data === 'string') {
+			return Buffer.from(value.data, 'base64')
+		}
+
+		if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+			const keys = Object.keys(value)
+			if (keys.length > 0 && keys.every(k => !isNaN(parseInt(k, 10)))) {
+				const values = Object.values(value)
+				if (values.every(v => typeof v === 'number')) {
+					return Buffer.from(values as number[])
+				}
+			}
 		}
 
 		return value
 	}
 }
 
-export const getKeyAuthor = (key: proto.IMessageKey | undefined | null, meId = 'me') =>
-	(key?.fromMe ? meId : key?.participant || key?.remoteJid) || ''
+export const getKeyAuthor = (key: WAMessageKey | undefined | null, meId = 'me') =>
+	(key?.fromMe ? meId : key?.participantAlt || key?.remoteJidAlt || key?.participant || key?.remoteJid) || ''
 
 export const writeRandomPadMax16 = (msg: Uint8Array) => {
 	const pad = randomBytes(1)
@@ -76,7 +87,7 @@ export const unpadRandomMax16 = (e: Uint8Array | Buffer) => {
 		throw new Error('unpadPkcs7 given empty bytes')
 	}
 
-	var r = t[t.length - 1]
+	var r = t[t.length - 1]!
 	if (r > t.length) {
 		throw new Error(`unpad given ${t.length} bytes, but pad is ${r}`)
 	}
@@ -84,10 +95,17 @@ export const unpadRandomMax16 = (e: Uint8Array | Buffer) => {
 	return new Uint8Array(t.buffer, t.byteOffset, t.length - r)
 }
 
+// code is inspired by whatsmeow
+export const generateParticipantHashV2 = (participants: string[]): string => {
+	participants.sort()
+	const sha256Hash = sha256(Buffer.from(participants.join(''))).toString('base64')
+	return '2:' + sha256Hash.slice(0, 6)
+}
+
 export const encodeWAMessage = (message: proto.IMessage) => writeRandomPadMax16(proto.Message.encode(message).finish())
 
 export const generateRegistrationId = (): number => {
-	return Uint16Array.from(randomBytes(2))[0] & 16383
+	return Uint16Array.from(randomBytes(2))[0]! & 16383
 }
 
 export const encodeBigEndian = (e: number, t = 4) => {
@@ -132,7 +150,7 @@ export const delay = (ms: number) => delayCancellable(ms).delay
 export const delayCancellable = (ms: number) => {
 	const stack = new Error().stack
 	let timeout: NodeJS.Timeout
-	let reject: (error) => void
+	let reject: (error: any) => void
 	const delay: Promise<void> = new Promise((resolve, _reject) => {
 		timeout = setTimeout(resolve, ms)
 		reject = _reject
@@ -154,7 +172,7 @@ export const delayCancellable = (ms: number) => {
 
 export async function promiseTimeout<T>(
 	ms: number | undefined,
-	promise: (resolve: (v: T) => void, reject: (error) => void) => void
+	promise: (resolve: (v: T) => void, reject: (error: any) => void) => void
 ) {
 	if (!ms) {
 		return new Promise(promise)
