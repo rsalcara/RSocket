@@ -2,9 +2,13 @@ import { Boom } from '@hapi/boom';
 import { proto } from '../../WAProto';
 import { BotListInfo, ChatModification, MessageUpsertType, SocketConfig, WABusinessProfile, WAMediaUpload, WAMessage, WAPatchCreate, WAPresence, WAPrivacyCallValue, WAPrivacyGroupAddValue, WAPrivacyMessagesValue, WAPrivacyOnlineValue, WAPrivacyValue, WAReadReceiptsValue } from '../Types';
 import { LabelActionBody } from '../Types/Label';
+import type { QuickReplyAction } from '../Types/Bussines';
 import { BinaryNode } from '../WABinary';
 import { USyncQuery } from '../WAUSync';
 export declare const makeChatsSocket: (config: SocketConfig) => {
+    createCallLink: (type: "audio" | "video", event?: {
+        startTime: number;
+    }, timeoutMs?: number) => Promise<string | undefined>;
     getBotListV2: () => Promise<BotListInfo[]>;
     processingMutex: {
         mutex<T>(code: () => Promise<T> | T): Promise<T>;
@@ -33,6 +37,7 @@ export declare const makeChatsSocket: (config: SocketConfig) => {
     updateProfileStatus: (status: string) => Promise<void>;
     updateProfileName: (name: string) => Promise<void>;
     updateBlockStatus: (jid: string, action: "block" | "unblock") => Promise<void>;
+    updateDisableLinkPreviewsPrivacy: (isPreviewsDisabled: boolean) => Promise<void>;
     updateCallPrivacy: (value: WAPrivacyCallValue) => Promise<void>;
     updateMessagesPrivacy: (value: WAPrivacyMessagesValue) => Promise<void>;
     updateLastSeenPrivacy: (value: WAPrivacyValue) => Promise<void>;
@@ -57,6 +62,8 @@ export declare const makeChatsSocket: (config: SocketConfig) => {
         id: string;
         fromMe?: boolean;
     }[], star: boolean) => Promise<void>;
+    addOrEditQuickReply: (quickReply: QuickReplyAction) => Promise<void>;
+    removeQuickReply: (timestamp: string) => Promise<void>;
     executeUSyncQuery: (usyncQuery: USyncQuery) => Promise<import("../WAUSync").USyncQueryResult | undefined>;
     type: "md";
     ws: import("./Client").WebSocketClient;

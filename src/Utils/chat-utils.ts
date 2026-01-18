@@ -722,6 +722,34 @@ export const chatModificationToAppPatch = (mod: ChatModification, jid: string) =
 			apiVersion: 3,
 			operation: OP.SET
 		}
+	} else if ('disableLinkPreviews' in mod) {
+		patch = {
+			syncAction: {
+				privacySettingDisableLinkPreviewsAction: {
+					isPreviewsDisabled: mod.disableLinkPreviews.isPreviewsDisabled
+				}
+			},
+			index: ['setting_privacySettingDisableLinkPreviews'],
+			type: 'regular',
+			apiVersion: 2,
+			operation: OP.SET
+		}
+	} else if ('quickReply' in mod) {
+		const { shortcut, message, keywords, timestamp, deleted } = mod.quickReply
+		patch = {
+			syncAction: {
+				quickReplyAction: {
+					shortcut,
+					message,
+					keywords,
+					deleted
+				}
+			},
+			index: ['quick_reply', timestamp || String(Date.now())],
+			type: 'regular',
+			apiVersion: 2,
+			operation: deleted ? OP.REMOVE : OP.SET
+		}
 	} else {
 		throw new Boom('not supported')
 	}
