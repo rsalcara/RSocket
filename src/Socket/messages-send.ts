@@ -95,6 +95,14 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 		useClones: false
 	})
 
+	// Cache for peer sessions to avoid redundant session checks
+	const peerSessionsCache = new NodeCache({
+		stdTTL: DEFAULT_CACHE_TTLS.USER_DEVICES,
+		maxKeys: DEFAULT_CACHE_MAX_KEYS.USER_DEVICES,
+		deleteOnExpire: true,
+		useClones: false
+	})
+
 	let mediaConn: Promise<MediaConnInfo>
 	const refreshMediaConn = async (forceGet = false) => {
 		const media = await mediaConn
@@ -137,10 +145,14 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 		messageIds: string[],
 		type: MessageReceiptType
 	) => {
+		if (!messageIds || messageIds.length === 0) {
+			throw new Boom('missing ids in receipt')
+		}
+
 		const node: BinaryNode = {
 			tag: 'receipt',
 			attrs: {
-				id: messageIds[0]
+				id: messageIds[0]!
 			}
 		}
 		const isReadReceipt = type === 'read' || type === 'read-self'
