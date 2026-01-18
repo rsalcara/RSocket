@@ -280,7 +280,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 				}
 			}
 
-			const extracted = extractDeviceJids(result?.list, authState.creds.me!.id, ignoreZeroDevices, authState.creds.me?.lid)
+			const extracted = extractDeviceJids(result?.list, authState.creds.me!.id, authState.creds.me?.lid || '', ignoreZeroDevices)
 			const deviceMap: { [_: string]: JidWithDevice[] } = {}
 
 			for (const item of extracted) {
