@@ -179,4 +179,11 @@ export type SocketConfig = {
 		logger?: ILogger,
 		pnFromLIDUSync?: PnFromLIDUSyncFn
 	) => SignalRepository
+
+	/**
+	 * Enable automatic session recreation when decryption fails repeatedly
+	 * This can help recover from corrupted sessions
+	 * @default false
+	 */
+	enableAutoSessionRecreation?: boolean
 }

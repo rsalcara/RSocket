@@ -57,6 +57,8 @@ export interface GroupMetadata {
 	inviteCode?: string
 	/** the person who added you to group or changed some setting in group */
 	author?: string
+	/** phone number of the author (if available) */
+	authorPn?: string
 }
 
 export interface WAGroupCreateResponse {
