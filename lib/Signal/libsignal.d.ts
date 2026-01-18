@@ -1,3 +1,5 @@
 import { SignalAuthState } from '../Types';
 import { SignalRepository } from '../Types/Signal';
-export declare function makeLibSignalRepository(auth: SignalAuthState): SignalRepository;
+import { PnFromLIDUSyncFn } from '../Types/Socket';
+import { ILogger } from '../Utils/logger';
+export declare function makeLibSignalRepository(auth: SignalAuthState, logger?: ILogger, pnFromLIDUSync?: PnFromLIDUSyncFn): SignalRepository;

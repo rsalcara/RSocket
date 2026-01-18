@@ -1,15 +1,102 @@
 import * as libsignal from 'libsignal'
 import { SignalAuthState } from '../Types'
-import { SignalRepository } from '../Types/Signal'
+import { LIDMapping, LIDMappingStore, SignalRepository } from '../Types/Signal'
+import { PnFromLIDUSyncFn } from '../Types/Socket'
 import { generateSignalPubKey } from '../Utils'
+import { ILogger } from '../Utils/logger'
 import { jidDecode } from '../WABinary'
 import type { SenderKeyStore } from './Group/group_cipher'
 import { SenderKeyName } from './Group/sender-key-name'
 import { SenderKeyRecord } from './Group/sender-key-record'
 import { GroupCipher, GroupSessionBuilder, SenderKeyDistributionMessage } from './Group'
 
-export function makeLibSignalRepository(auth: SignalAuthState): SignalRepository {
+export function makeLibSignalRepository(
+	auth: SignalAuthState,
+	logger?: ILogger,
+	pnFromLIDUSync?: PnFromLIDUSyncFn
+): SignalRepository {
 	const storage: SenderKeyStore = signalStorage(auth)
+
+	// In-memory LID mapping cache
+	const lidMappingCache = new Map<string, string>()
+
+	// LID mapping store implementation
+	const lidMapping: LIDMappingStore = {
+		async getLIDPNMappings(lids: string[]): Promise<LIDMapping[]> {
+			const result: LIDMapping[] = []
+			const missingLids: string[] = []
+
+			// Check cache first
+			for (const lid of lids) {
+				const pn = lidMappingCache.get(lid)
+				if (pn) {
+					result.push({ lid, pn })
+				} else {
+					missingLids.push(lid)
+				}
+			}
+
+			// If we have missing LIDs and a USync function, fetch them
+			if (missingLids.length > 0 && pnFromLIDUSync) {
+				try {
+					const fetchedMappings = await pnFromLIDUSync(missingLids)
+					if (fetchedMappings) {
+						for (const mapping of fetchedMappings) {
+							lidMappingCache.set(mapping.lid, mapping.pn)
+							result.push(mapping)
+						}
+					}
+				} catch (err) {
+					logger?.warn({ err, lids: missingLids }, 'Failed to fetch LID mappings via USync')
+				}
+			}
+
+			return result
+		},
+		async storeLIDPNMappings(mappings: LIDMapping[]): Promise<void> {
+			for (const mapping of mappings) {
+				lidMappingCache.set(mapping.lid, mapping.pn)
+			}
+
+			// Also store in keys for persistence
+			const lidMappingData: Record<string, string> = {}
+			for (const mapping of mappings) {
+				lidMappingData[mapping.lid] = mapping.pn
+			}
+
+			try {
+				await auth.keys.set({ 'lid-mapping': lidMappingData })
+			} catch (err) {
+				logger?.warn({ err }, 'Failed to persist LID mappings')
+			}
+		}
+	}
+
+	// Session migration function
+	const migrateSession = async (pn: string, lid: string): Promise<void> => {
+		try {
+			// Get the existing session for the phone number
+			const pnAddr = jidToSignalProtocolAddress(pn)
+			const pnAddrStr = pnAddr.toString()
+			const { [pnAddrStr]: existingSession } = await auth.keys.get('session', [pnAddrStr])
+
+			if (!existingSession) {
+				logger?.debug({ pn, lid }, 'No existing session to migrate')
+				return
+			}
+
+			// Create session for LID using the same session data
+			const lidAddr = jidToSignalProtocolAddress(lid)
+			const lidAddrStr = lidAddr.toString()
+
+			await auth.keys.set({ session: { [lidAddrStr]: existingSession } })
+			logger?.debug({ pn, lid }, 'Session migrated successfully')
+		} catch (err) {
+			logger?.error({ err, pn, lid }, 'Failed to migrate session')
+			throw err
+		}
+	}
+
 	return {
 		decryptGroupMessage({ group, authorJid, msg }) {
 			const senderName = jidToSignalSenderKeyName(group, authorJid)
@@ -90,7 +177,9 @@ export function makeLibSignalRepository(auth: SignalAuthState): SignalRepository
 		},
 		jidToSignalProtocolAddress(jid) {
 			return jidToSignalProtocolAddress(jid).toString()
-		}
+		},
+		lidMapping,
+		migrateSession
 	}
 }
 

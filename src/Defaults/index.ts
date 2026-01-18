@@ -111,6 +111,12 @@ export const MIN_PREKEY_COUNT = 5
 
 export const INITIAL_PREKEY_COUNT = 30
 
+/** Minimum interval between pre-key uploads (in milliseconds) */
+export const MIN_UPLOAD_INTERVAL = 60_000 // 1 minute
+
+/** Timeout for pre-key upload operations (in milliseconds) */
+export const UPLOAD_TIMEOUT = 30_000 // 30 seconds
+
 /**
  * Default TTL (Time-To-Live) and memory limits for internal caches
  *

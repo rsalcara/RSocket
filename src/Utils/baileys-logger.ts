@@ -120,7 +120,7 @@ export function logMessage(event: 'sent' | 'received' | 'decrypt_failed', detail
 /**
  * Log PreKey events
  */
-export function logPreKeys(event: 'uploaded' | 'low' | 'refreshed', count?: number): void {
+export function logPreKeys(event: 'uploaded' | 'low' | 'refreshed' | 'rotated', count?: number): void {
 	if (!isBaileysLogEnabled()) return
 
 	switch (event) {
@@ -132,6 +132,9 @@ export function logPreKeys(event: 'uploaded' | 'low' | 'refreshed', count?: numb
 		break
 	case 'refreshed':
 		console.log(`[BAILEYS] 🔄 PreKeys refreshed`)
+		break
+	case 'rotated':
+		console.log(`[BAILEYS] 🔄 Signed PreKey rotated`)
 		break
 	}
 }

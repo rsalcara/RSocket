@@ -46,7 +46,7 @@ export declare function logMessage(event: 'sent' | 'received' | 'decrypt_failed'
 /**
  * Log PreKey events
  */
-export declare function logPreKeys(event: 'uploaded' | 'low' | 'refreshed', count?: number): void;
+export declare function logPreKeys(event: 'uploaded' | 'low' | 'refreshed' | 'rotated', count?: number): void;
 /**
  * Log session establishment
  */
