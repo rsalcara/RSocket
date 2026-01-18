@@ -1,7 +1,7 @@
 import { chunk } from 'lodash'
 import { KEY_BUNDLE_TYPE } from '../Defaults'
-import { SignalRepository } from '../Types'
-import {
+import type { SignalRepository } from '../Types'
+import type {
 	AuthenticationCreds,
 	AuthenticationState,
 	KeyPair,
@@ -11,16 +11,16 @@ import {
 } from '../Types/Auth'
 import {
 	assertNodeErrorFree,
-	BinaryNode,
+	type BinaryNode,
 	getBinaryNodeChild,
 	getBinaryNodeChildBuffer,
 	getBinaryNodeChildren,
 	getBinaryNodeChildUInt,
 	jidDecode,
-	JidWithDevice,
+	type JidWithDevice,
 	S_WHATSAPP_NET
 } from '../WABinary'
-import { DeviceListData, ParsedDeviceInfo, USyncQueryResultList } from '../WAUSync'
+import type { DeviceListData, ParsedDeviceInfo, USyncQueryResultList } from '../WAUSync'
 import { Curve, generateSignalPubKey } from './crypto'
 import { encodeBigEndian } from './generics'
 import { convertlidDevice } from './messages'
@@ -185,7 +185,7 @@ export const getNextPreKeysNode = async (state: AuthenticationState, count: numb
 			{ tag: 'registration', attrs: {}, content: encodeBigEndian(creds.registrationId) },
 			{ tag: 'type', attrs: {}, content: KEY_BUNDLE_TYPE },
 			{ tag: 'identity', attrs: {}, content: creds.signedIdentityKey.public },
-			{ tag: 'list', attrs: {}, content: Object.keys(preKeys).map(k => xmppPreKey(preKeys[+k], +k)) },
+			{ tag: 'list', attrs: {}, content: Object.keys(preKeys).map(k => xmppPreKey(preKeys[+k]!, +k)) },
 			xmppSignedPreKey(creds.signedPreKey)
 		]
 	}
