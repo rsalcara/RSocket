@@ -68,6 +68,7 @@ export class BaileysPrometheusMetrics {
 	public messagesSentTotal?: Counter<string>
 	public messagesRetryTotal?: Counter<string>
 	public messagesProcessingDuration?: Histogram<string>
+	public messageTypeMismatchFlushTotal?: Counter<string>
 
 	// ============================================
 	// CATEGORY 5: CACHE METRICS
@@ -313,6 +314,13 @@ export class BaileysPrometheusMetrics {
 			help: 'Message processing duration in seconds',
 			labelNames: ['message_type'],
 			buckets: [0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1],
+			registers: [this.registry]
+		})
+
+		this.messageTypeMismatchFlushTotal = new Counter({
+			name: `${prefix}message_type_mismatch_flush_total`,
+			help: 'Total number of flushes triggered by message type mismatch (prevents type overshadowing)',
+			labelNames: ['buffered_type', 'new_type'],
 			registers: [this.registry]
 		})
 
@@ -593,6 +601,16 @@ export class BaileysPrometheusMetrics {
 	public recordMessageProcessingDuration(messageType: string, durationMs: number): void {
 		if (!this.config.enabled) return
 		this.messagesProcessingDuration?.observe({ message_type: messageType }, durationMs / 1000)
+	}
+
+	/**
+	 * Record message type mismatch flush
+	 * This happens when buffered messages have a different type than incoming messages,
+	 * requiring an early flush to prevent type information loss (overshadowing)
+	 */
+	public recordMessageTypeMismatchFlush(bufferedType: string, newType: string): void {
+		if (!this.config.enabled) return
+		this.messageTypeMismatchFlushTotal?.inc({ buffered_type: bufferedType, new_type: newType })
 	}
 
 	/**

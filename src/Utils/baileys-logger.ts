@@ -169,7 +169,7 @@ export function logInfo(message: string, data?: any): void {
 /**
  * Log event buffer operations
  */
-export function logEventBuffer(event: 'buffer_start' | 'buffer_flush' | 'buffer_overflow' | 'buffer_timeout' | 'cache_cleanup' | 'adaptive_flush_enabled', details?: {
+export function logEventBuffer(event: 'buffer_start' | 'buffer_flush' | 'buffer_overflow' | 'buffer_timeout' | 'cache_cleanup' | 'adaptive_flush_enabled' | 'buffer_destroyed' | 'type_mismatch_flush', details?: {
 	itemsBuffered?: number
 	flushCount?: number
 	historyCacheSize?: number
@@ -183,6 +183,10 @@ export function logEventBuffer(event: 'buffer_start' | 'buffer_flush' | 'buffer_
 	minTimeout?: number
 	maxTimeout?: number
 	mode?: string
+	// New fields for buffer_destroyed and type_mismatch_flush
+	bufferedType?: string
+	newType?: string
+	messageCount?: number
 }): void {
 	if (!isBaileysLogEnabled()) return
 
@@ -231,6 +235,19 @@ export function logEventBuffer(event: 'buffer_start' | 'buffer_flush' | 'buffer_
 			remaining: details?.remaining
 		})
 		break
+	case 'buffer_destroyed':
+		console.log(`[BAILEYS] 💀 Event buffer destroyed`, {
+			flushCount: details?.flushCount,
+			historyCacheSize: details?.historyCacheSize
+		})
+		break
+	case 'type_mismatch_flush':
+		console.log(`[BAILEYS] ⚡ Type mismatch flush - emitting buffered messages early`, {
+			bufferedType: details?.bufferedType,
+			newType: details?.newType,
+			messageCount: details?.messageCount
+		})
+		break
 	}
 }
 
@@ -242,6 +259,12 @@ export function logBufferMetrics(metrics: {
 	flushCount: number
 	historyCacheSize: number
 	buffersInProgress: number
+	adaptive?: {
+		mode: string
+		timeout: number
+		eventRate: number
+		isHealthy: boolean
+	}
 }): void {
 	if (!isBaileysLogEnabled()) return
 	console.log(`[BAILEYS] 📊 Buffer Metrics`, metrics)
