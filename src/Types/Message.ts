@@ -3,26 +3,35 @@ import type { Readable } from 'stream'
 import type { URL } from 'url'
 import { proto } from '../../WAProto'
 import { MEDIA_HKDF_KEY_MAPPING } from '../Defaults'
-import { BinaryNode } from '../WABinary'
+import type { BinaryNode } from '../WABinary'
 import type { GroupMetadata } from './GroupMetadata'
-import { CacheStore } from './Socket'
+import type { CacheStore } from './Socket'
 
 // export the WAMessage Prototypes
 export { proto as WAProto }
-export type WAMessage = proto.IWebMessageInfo & { key: WAMessageKey }
+export type WAMessage = proto.IWebMessageInfo & {
+	key: WAMessageKey
+	messageStubParameters?: any
+	category?: string
+	retryCount?: number
+}
 export type WAMessageContent = proto.IMessage
 export type WAContactMessage = proto.Message.IContactMessage
 export type WAContactsArrayMessage = proto.Message.IContactsArrayMessage
 export type WAMessageKey = proto.IMessageKey & {
+	// Fork-specific LID fields
 	sender_lid?: string
 	server_id?: string
 	sender_pn?: string
 	peer_recipient_pn?: string
 	participant_lid?: string
 	participant_pn?: string
-	isViewOnce?: boolean
 	peer_recipient_lid?: string
-	/// deixar da mesma maneira que vem no node.
+	// Upstream fields
+	remoteJidAlt?: string
+	participantAlt?: string
+	addressingMode?: string
+	isViewOnce?: boolean
 }
 export type WATextMessage = proto.Message.IExtendedTextMessage
 export type WAContextInfo = proto.IContextInfo
@@ -35,8 +44,46 @@ export type WAGenericMediaMessage =
 	| proto.Message.IStickerMessage
 export const WAMessageStubType = proto.WebMessageInfo.StubType
 export const WAMessageStatus = proto.WebMessageInfo.Status
-import { ILogger } from '../Utils/logger'
+import type { ILogger } from '../Utils/logger'
 export type WAMediaPayloadURL = { url: URL | string }
+
+export enum WAMessageAddressingMode {
+	PN = 'pn',
+	LID = 'lid'
+}
+
+export type MessageWithContextInfo =
+	| 'imageMessage'
+	| 'contactMessage'
+	| 'locationMessage'
+	| 'extendedTextMessage'
+	| 'documentMessage'
+	| 'audioMessage'
+	| 'videoMessage'
+	| 'call'
+	| 'contactsArrayMessage'
+	| 'liveLocationMessage'
+	| 'templateMessage'
+	| 'stickerMessage'
+	| 'groupInviteMessage'
+	| 'templateButtonReplyMessage'
+	| 'productMessage'
+	| 'listMessage'
+	| 'orderMessage'
+	| 'listResponseMessage'
+	| 'buttonsMessage'
+	| 'buttonsResponseMessage'
+	| 'interactiveMessage'
+	| 'interactiveResponseMessage'
+	| 'pollCreationMessage'
+	| 'requestPhoneNumberMessage'
+	| 'messageHistoryBundle'
+	| 'eventMessage'
+	| 'newsletterAdminInviteMessage'
+	| 'albumMessage'
+	| 'stickerPackMessage'
+	| 'pollResultSnapshotMessage'
+	| 'messageHistoryNotice'
 export type WAMediaPayloadStream = { stream: Readable }
 export type WAMediaUpload = Buffer | WAMediaPayloadStream | WAMediaPayloadURL
 /** Set of message types that are supported by the library */
@@ -99,6 +146,19 @@ export type PollMessageOptions = {
 	/** 32 byte message secret to encrypt poll selections */
 	messageSecret?: Uint8Array
 	toAnnouncementGroup?: boolean
+}
+
+export type EventMessageOptions = {
+	name: string
+	description?: string
+	startDate: Date
+	endDate?: Date
+	location?: WALocationMessage
+	call?: 'audio' | 'video'
+	isCancelled?: boolean
+	isScheduleCall?: boolean
+	extraGuestsAllowed?: boolean
+	messageSecret?: Uint8Array<ArrayBufferLike>
 }
 
 type SharePhoneNumber = {
@@ -173,6 +233,7 @@ export type AnyRegularMessageContent = (
 			Contextable &
 			Editable)
 	| AnyMediaMessageContent
+	| { event: EventMessageOptions }
 	| ({
 			poll: PollMessageOptions
 	  } & Mentionable &
@@ -229,6 +290,9 @@ export type AnyMessageContent =
 	  }
 	| {
 			disappearingMessagesInChat: boolean | number
+	  }
+	| {
+			limitSharing: boolean
 	  }
 
 export type GroupMetadataParticipants = Pick<GroupMetadata, 'participants'>
@@ -298,6 +362,7 @@ export type MediaGenerationOptions = {
 export type MessageContentGenerationOptions = MediaGenerationOptions & {
 	getUrlInfo?: (text: string) => Promise<WAUrlInfo | undefined>
 	getProfilePicUrl?: (jid: string, type: 'image' | 'preview') => Promise<string | undefined>
+	getCallLink?: (type: 'audio' | 'video', event?: { startTime: number }) => Promise<string | undefined>
 	jid?: string
 }
 export type MessageGenerationOptions = MessageContentGenerationOptions & MessageGenerationOptionsFromContent
@@ -311,11 +376,11 @@ export type MessageUpsertType = 'append' | 'notify'
 
 export type MessageUserReceipt = proto.IUserReceipt
 
-export type WAMessageUpdate = { update: Partial<WAMessage>; key: proto.IMessageKey }
+export type WAMessageUpdate = { update: Partial<WAMessage>; key: WAMessageKey }
 
 export type WAMessageCursor = { before: WAMessageKey | undefined } | { after: WAMessageKey | undefined }
 
-export type MessageUserReceiptUpdate = { key: proto.IMessageKey; receipt: MessageUserReceipt }
+export type MessageUserReceiptUpdate = { key: WAMessageKey; receipt: MessageUserReceipt }
 
 export type MediaDecryptionKeyInfo = {
 	iv: Buffer
@@ -323,4 +388,4 @@ export type MediaDecryptionKeyInfo = {
 	macKey?: Buffer
 }
 
-export type MinimalMessage = Pick<proto.IWebMessageInfo, 'key' | 'messageTimestamp'>
+export type MinimalMessage = Pick<WAMessage, 'key' | 'messageTimestamp'>

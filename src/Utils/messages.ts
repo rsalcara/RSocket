@@ -536,6 +536,20 @@ export const generateWAMessageContent = async (
 		}
 	} else if ('requestPhoneNumber' in message) {
 		m.requestPhoneNumberMessage = {}
+	} else if ('event' in message) {
+		// Event messages require CALL_AUDIO_PREFIX and CALL_VIDEO_PREFIX constants
+		// which are not yet available in this fork
+		throw new Boom('Event messages are not yet supported', { statusCode: 400 })
+	} else if ('limitSharing' in message) {
+		m.protocolMessage = {
+			type: proto.Message.ProtocolMessage.Type.LIMIT_SHARING,
+			limitSharing: {
+				sharingLimited: message.limitSharing === true,
+				trigger: 1,
+				limitSharingSettingTimestamp: Date.now(),
+				initiatedByMe: true
+			}
+		}
 	} else {
 		m = await prepareWAMessageMedia(message, options)
 	}
