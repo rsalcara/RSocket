@@ -21,6 +21,7 @@ export * from './retry-utils'
 export * from './trace-context'
 export * from './jid-utils'
 export * from './prometheus-metrics'
+export * from './message-retry-manager'
 // Structured logger and adapter - explicit exports to avoid conflicts
 export {
 	createBaileysLogger,

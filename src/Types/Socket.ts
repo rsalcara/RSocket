@@ -62,6 +62,8 @@ export type SocketConfig = {
 	retryRequestDelayMs: number
 	/** max retry count */
 	maxMsgRetryCount: number
+	/** enable recent message cache for retries */
+	enableRecentMessageCache?: boolean
 	/**
 	 * Array of delays in milliseconds for exponential backoff on message decrypt retries.
 	 * Each element represents the delay for the corresponding retry attempt.
