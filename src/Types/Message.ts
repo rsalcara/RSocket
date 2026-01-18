@@ -278,7 +278,7 @@ export type MessageGenerationOptionsFromContent = MiscMessageGenerationOptions &
 export type WAMediaUploadFunction = (
 	encFilePath: string,
 	opts: { fileEncSha256B64: string; mediaType: MediaType; timeoutMs?: number }
-) => Promise<{ mediaUrl: string; directPath: string }>
+) => Promise<{ mediaUrl: string; directPath: string; meta_hmac?: string; fbid?: number; ts?: number }>
 
 export type MediaGenerationOptions = {
 	logger?: ILogger
