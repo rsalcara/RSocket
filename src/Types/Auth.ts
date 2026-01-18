@@ -78,6 +78,8 @@ export type SignalDataTypeMap = {
 	'lid-mapping': string
 	/** List of devices for a user (needed for bulk LID migration) */
 	'device-list': string[]
+	/** TC Token for profile updates and presence */
+	tctoken: { token: Buffer; timestamp?: string }
 }
 
 export type SignalDataSet = { [T in keyof SignalDataTypeMap]?: { [id: string]: SignalDataTypeMap[T] | null } }
