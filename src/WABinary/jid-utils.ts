@@ -53,6 +53,10 @@ export const isJidUser = (jid: string | undefined) => jid?.endsWith('@s.whatsapp
 export const isPnUser = (jid: string | undefined) => jid?.endsWith('@s.whatsapp.net')
 /** is the jid a LID */
 export const isLidUser = (jid: string | undefined) => jid?.endsWith('@lid')
+/** is the jid a hosted PN */
+export const isHostedPnUser = (jid: string | undefined) => jid?.endsWith('@hosted')
+/** is the jid a hosted LID */
+export const isHostedLidUser = (jid: string | undefined) => jid?.endsWith('@hosted.lid')
 /** is the jid a broadcast */
 export const isJidBroadcast = (jid: string | undefined) => jid?.endsWith('@broadcast')
 /** is the jid a group */

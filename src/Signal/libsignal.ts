@@ -69,6 +69,28 @@ export function makeLibSignalRepository(
 			} catch (err) {
 				logger?.warn({ err }, 'Failed to persist LID mappings')
 			}
+		},
+		async getPNForLID(lid: string): Promise<string | undefined> {
+			// Check cache first
+			const cachedPn = lidMappingCache.get(lid)
+			if (cachedPn) {
+				return cachedPn
+			}
+
+			// Try to fetch from USync if available
+			if (pnFromLIDUSync) {
+				try {
+					const mappings = await pnFromLIDUSync([lid])
+					if (mappings && mappings.length > 0) {
+						lidMappingCache.set(lid, mappings[0].pn)
+						return mappings[0].pn
+					}
+				} catch (err) {
+					logger?.warn({ err, lid }, 'Failed to fetch PN for LID via USync')
+				}
+			}
+
+			return undefined
 		}
 	}
 
