@@ -79,6 +79,10 @@ export type SignalRepository = {
 	jidToSignalProtocolAddress(jid: string): string
 	/** LID mapping storage (optional, for LID migration support) */
 	lidMapping: LIDMappingStore
-	/** Migrate session from phone number to LID (optional, for LID migration support) */
-	migrateSession(pn: string, lid: string): Promise<void>
+	/** Migrate session from phone number to LID with bulk support */
+	migrateSession(fromJid: string, toJid: string): Promise<{ migrated: number; skipped: number; total: number }>
+	/** Validate if a session exists for a JID */
+	validateSession(jid: string): Promise<{ exists: boolean; reason?: string }>
+	/** Delete sessions for multiple JIDs */
+	deleteSession(jids: string[]): Promise<void>
 }
