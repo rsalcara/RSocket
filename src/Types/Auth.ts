@@ -63,6 +63,8 @@ export type AuthenticationCreds = SignalCreds & {
 	pairingCode: string | undefined
 	lastPropHash: string | undefined
 	routingInfo: Buffer | undefined
+	/** additional data that can be stored with the credentials */
+	additionalData: Record<string, any> | undefined
 }
 
 export type SignalDataTypeMap = {
@@ -91,7 +93,12 @@ export type SignalKeyStore = {
 
 export type SignalKeyStoreWithTransaction = SignalKeyStore & {
 	isInTransaction: () => boolean
-	transaction<T>(exec: () => Promise<T>): Promise<T>
+	/**
+	 * Execute a transaction with the given key for mutex isolation
+	 * @param exec function to execute within the transaction
+	 * @param key unique key for the transaction mutex (e.g., jid, group-id). Defaults to 'default' if not provided.
+	 */
+	transaction<T>(exec: () => Promise<T>, key?: string): Promise<T>
 }
 
 export type TransactionCapabilityOptions = {

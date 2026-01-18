@@ -1,5 +1,5 @@
 import type { AuthenticationCreds, CacheStore, SignalKeyStore, SignalKeyStoreWithTransaction, TransactionCapabilityOptions } from '../Types';
-import { ILogger } from './logger';
+import type { ILogger } from './logger';
 /**
  * Adds caching capability to a SignalKeyStore
  * @param store the store to add caching to
@@ -8,8 +8,8 @@ import { ILogger } from './logger';
  */
 export declare function makeCacheableSignalKeyStore(store: SignalKeyStore, logger?: ILogger, _cache?: CacheStore): SignalKeyStore;
 /**
- * Adds DB like transaction capability (https://en.wikipedia.org/wiki/Database_transaction) to the SignalKeyStore,
- * this allows batch read & write operations & improves the performance of the lib
+ * Adds DB-like transaction capability to the SignalKeyStore
+ * Uses AsyncLocalStorage for automatic context management
  * @param state the key store to apply this capability to
  * @param logger logger to log events
  * @returns SignalKeyStore with transaction capability
