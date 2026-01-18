@@ -1,5 +1,5 @@
 import { Boom } from '@hapi/boom';
-import Long = require('long');
+import Long from 'long';
 import { proto } from '../../WAProto';
 import type { MessageReceiptType, MessageRelayOptions, SocketConfig, WAMessageKey, WAPresence } from '../Types';
 import { BinaryNode } from '../WABinary';
@@ -26,6 +26,7 @@ export declare const makeMessagesRecvSocket: (config: SocketConfig) => {
         shouldIncludeDeviceIdentity: boolean;
     }>;
     getUSyncDevices: (jids: string[], useCache: boolean, ignoreZeroDevices: boolean) => Promise<import("../WABinary").JidWithDevice[]>;
+    getLid: (jid: string) => Promise<string | null>;
     updateMediaMessage: (message: proto.IWebMessageInfo) => Promise<proto.IWebMessageInfo>;
     sendMessage: (jid: string, content: import("../Types").AnyMessageContent, options?: import("../Types").MiscMessageGenerationOptions) => Promise<proto.WebMessageInfo | undefined>;
     newsletterCreate: (name: string, description?: string) => Promise<import("../Types").NewsletterMetadata>;

@@ -1,7 +1,7 @@
 import NodeCache from '@cacheable/node-cache'
 import { Boom } from '@hapi/boom'
 import { randomBytes } from 'crypto'
-import Long = require('long')
+import Long from 'long'
 import { proto } from '../../WAProto'
 import { DEFAULT_CACHE_TTLS, DEFAULT_CACHE_MAX_KEYS, KEY_BUNDLE_TYPE, MIN_PREKEY_COUNT } from '../Defaults'
 import type {
@@ -468,7 +468,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 				const { update, preKeys } = await getNextPreKeys(authState, 1)
 
 				const [keyId] = Object.keys(preKeys)
-				const key = preKeys[+keyId!]
+				const preKey = preKeys[+keyId!]
 
 				const content = receipt.content! as BinaryNode[]
 				content.push({
@@ -477,7 +477,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 					content: [
 						{ tag: 'type', attrs: {}, content: Buffer.from(KEY_BUNDLE_TYPE) },
 						{ tag: 'identity', attrs: {}, content: identityKey.public },
-						xmppPreKey(key!, +keyId!),
+						xmppPreKey(preKey!, +keyId!),
 						xmppSignedPreKey(signedPreKey),
 						{ tag: 'device-identity', attrs: {}, content: deviceIdentity }
 					]
@@ -694,14 +694,14 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 				])
 
 				if (isJidGroup(from)) {
-					const node = setPicture || delPicture
+					const pictureNode = setPicture || delPicture
 					result.messageStubType = WAMessageStubType.GROUP_CHANGE_ICON
 
 					if (setPicture) {
 						result.messageStubParameters = [setPicture.attrs.id!]
 					}
 
-					result.participant = node?.attrs.author
+					result.participant = pictureNode?.attrs.author
 					result.key = {
 						...(result.key || {}),
 						participant: setPicture?.attrs.author
@@ -1327,6 +1327,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 					processedInBatch++
 
 					// Yield to event loop after processing a batch
+					// This prevents blocking the event loop for too long when there are many offline nodes
 					if (processedInBatch >= BATCH_SIZE) {
 						processedInBatch = 0
 						await yieldToEventLoop()

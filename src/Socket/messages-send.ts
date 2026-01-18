@@ -267,7 +267,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 		return deviceResults
 	}
 
-	
+
 	const assertSessions = async (jids: string[], force: boolean, lids?: string) => {
 		let didFetchNewSession = false
 		const melid = jidNormalizedUser(authState.creds.me?.lid)
@@ -394,14 +394,14 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 	const cachedLid = lidCache.get(jid);
 	if (cachedLid) {
 		return cachedLid;
-	}	
+	}
 	const usyncQuery = new USyncQuery()
 		.withContactProtocol()
 		.withLIDProtocol()
-		.withUser(new USyncUser().withPhone(jid.split('@')[0]));	
-	const results = await sock.executeUSyncQuery(usyncQuery);	
+		.withUser(new USyncUser().withPhone(jid.split('@')[0]));
+	const results = await sock.executeUSyncQuery(usyncQuery);
 	if (results?.list) {
-		const maybeLid = results.list[0]?.lid;	
+		const maybeLid = results.list[0]?.lid;
 		if (typeof maybeLid === 'string') {
 		lidCache.set(jid, maybeLid);
 		return maybeLid;
@@ -425,10 +425,10 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 			statusJidList,
 			isretry
 		}: MessageRelayOptions,
-	
+
 	) => {
 		const meId = authState.creds.me!.id
-		const meLid =  authState.creds.me!.lid || authState.creds.me!.id		
+		const meLid =  authState.creds.me!.lid || authState.creds.me!.id
 		const lidattrs = jidDecode(authState.creds.me?.lid);
 		const jlidUser = lidattrs?.user
 		let  lids: string
@@ -439,8 +439,8 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 					if(!isLidUser(userQuery))
 						{
 
-                        const verify = await caches.lidCache.get(userQuery);					
-						if(verify){ 
+                        const verify = await caches.lidCache.get(userQuery);
+						if(verify){
 							lids = verify
 						}
 						else
@@ -451,8 +451,8 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 							const maybeLid = results.list[0]?.lid;
 								if (typeof maybeLid === 'string') {
 								caches.lidCache.set(userQuery,maybeLid)
-								lids = maybeLid;								
-								}					
+								lids = maybeLid;
+								}
 						   }
 						}
 					}
@@ -461,10 +461,10 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 		const statusJid = 'status@broadcast'
 		const isGroup = server === 'g.us'
 		const isStatus = jid === statusJid
-		const isLid = server === 'lid'				
+		const isLid = server === 'lid'
 		const isNewsletter = server === 'newsletter'
 
-		let shouldIncludeDeviceIdentity = false		
+		let shouldIncludeDeviceIdentity = false
 
 		msgId = msgId || generateMessageIDV2(sock.user?.id)
 		useUserDevicesCache = useUserDevicesCache !== false
@@ -474,23 +474,23 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 		const destinationJid = !isStatus ? jidEncode(user, isLid ? 'lid' : isGroup ? 'g.us' : 's.whatsapp.net') : statusJid
 		const binaryNodeContent: BinaryNode[] = []
 		const devices: JidWithDevice[] = []
-		
+
 		const meMsg: proto.IMessage = {
 			deviceSentMessage: {
 				destinationJid,
 				message
 			}
 		}
-		   
+
 		const extraAttrs = {}
 
 		if (participant) {
-	
+
 			if (!isGroup && !isStatus) {
 				additionalAttributes = { ...additionalAttributes, device_fanout: 'false' }
 			}
 			const { user, device, } = jidDecode(participant.jid)!
-			devices.push({ user, device, jid: jidNormalizedUser(participant.jid) })	
+			devices.push({ user, device, jid: jidNormalizedUser(participant.jid) })
 		}
 
 		await authState.keys.transaction(async () => {
@@ -587,14 +587,14 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 				const senderKeyJids: string[] = []
 					for(const { user, device, jid } of devices) {
 						const server = jidDecode(jid)?.server || 'lid' ;
-						const senderId = jidEncode(user, server, device)					
+						const senderId = jidEncode(user, server, device)
 						senderKeyJids.push(senderId)
 						senderKeyMap[senderId] = true
-					
-						
+
+
 				}
-				
-				
+
+
 
 				// if there are some participants with whom the session has not been established
 				// if there are, we re-send the senderkey
@@ -624,30 +624,30 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 
 				await authState.keys.set({ 'sender-key-memory': { [jid]: senderKeyMap } })
 			} else {
-							
+
 				const { user: meUser, device: meDevice } = jidDecode(meId)!
-					
-				
-					if(!participant) {				
-				
-						devices.push({ user, device:0, jid })						
-						if(meDevice !== undefined && meDevice !== 0) {						
-						   
+
+
+					if(!participant) {
+
+						devices.push({ user, device:0, jid })
+						if(meDevice !== undefined && meDevice !== 0) {
+
 						   if(isLidUser(jid) && jlidUser)
-						   {							
+						   {
 							devices.push({ user: jlidUser, device: 0, jid:  jidNormalizedUser(meLid)});
 							const additionalDevices = await getUSyncDevices([ jid, meLid], !!useUserDevicesCache, true);
-							devices.push(...additionalDevices);							
+							devices.push(...additionalDevices);
 						   }
 						   else
 						   {
-						   devices.push({ user: meUser, device:0, jid:  jidNormalizedUser(meId)});						   
+						   devices.push({ user: meUser, device:0, jid:  jidNormalizedUser(meId)});
 						   const additionalDevices = await getUSyncDevices([ jid, meId], !!useUserDevicesCache, true)
-						   devices.push(...additionalDevices);	
-						   }					
-						
+						   devices.push(...additionalDevices);
+						   }
+
 					}
-						
+
 				}
 
 					const allJids: string[] = []
@@ -655,19 +655,19 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 					const otherJids: string[] = []
 					for(const { user, device, jid} of devices) {
 						const isMe = user === meUser
-						const ismeLid = user ===jlidUser						
+						const ismeLid = user ===jlidUser
 						const server = jidDecode(jid)?.server || 'lid' ;
 						const senderId = jidEncode(user, server, device)
-						if (isMe || ismeLid) {							
+						if (isMe || ismeLid) {
 								meJids.push(senderId);
 							}
 							else
-							{                 
-								otherJids.push(senderId);							
+							{
+								otherJids.push(senderId);
 							}
 						   allJids.push(senderId)
 					}
-			  
+
 					await assertSessions(allJids, isretry ? true : false, lids);
 
 				const [
@@ -713,7 +713,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 			if (participant) {
 				if (isJidGroup(destinationJid)) {
 					stanza.attrs.to = destinationJid
-					stanza.attrs.participant = participant.jid				
+					stanza.attrs.participant = participant.jid
 				} else if (areJidsSameUser(participant.jid, meId)) {
 					stanza.attrs.to = participant.jid
 					stanza.attrs.recipient = destinationJid
@@ -918,6 +918,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 		sendPeerDataOperationMessage,
 		createParticipantNodes,
 		getUSyncDevices,
+		getLid,
 		updateMediaMessage: async (message: proto.IWebMessageInfo) => {
 			const content = assertMediaContent(message.message)
 			const mediaKey = content.mediaKey!
