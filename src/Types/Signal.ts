@@ -12,6 +12,8 @@ export type LIDMappingStore = {
 	storeLIDPNMappings(mappings: LIDMapping[]): Promise<void>
 	/** Get phone number for a single LID */
 	getPNForLID(lid: string): Promise<string | undefined>
+	/** Get LID for a single phone number */
+	getLIDForPN(pn: string): Promise<string | undefined>
 }
 
 type DecryptGroupSignalOpts = {

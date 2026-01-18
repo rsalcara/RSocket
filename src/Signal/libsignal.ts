@@ -33,8 +33,10 @@ export function makeLibSignalRepository(
 		ttl: 1000 * 60 * 60 // 1 hour
 	})
 
-	// In-memory LID mapping cache
+	// In-memory LID mapping cache (LID -> PN)
 	const lidMappingCache = new Map<string, string>()
+	// Reverse cache (PN -> LID) for getLIDForPN lookups
+	const pnToLidCache = new Map<string, string>()
 
 	// LID mapping store implementation
 	const lidMapping: LIDMappingStore = {
@@ -72,6 +74,8 @@ export function makeLibSignalRepository(
 		async storeLIDPNMappings(mappings: LIDMapping[]): Promise<void> {
 			for (const mapping of mappings) {
 				lidMappingCache.set(mapping.lid, mapping.pn)
+				// Also populate reverse cache
+				pnToLidCache.set(mapping.pn, mapping.lid)
 			}
 
 			// Also store in keys for persistence
@@ -99,10 +103,28 @@ export function makeLibSignalRepository(
 					const mappings = await pnFromLIDUSync([lid])
 					if (mappings && mappings.length > 0) {
 						lidMappingCache.set(lid, mappings[0].pn)
+						pnToLidCache.set(mappings[0].pn, lid)
 						return mappings[0].pn
 					}
 				} catch (err) {
 					logger?.warn({ err, lid }, 'Failed to fetch PN for LID via USync')
+				}
+			}
+
+			return undefined
+		},
+		async getLIDForPN(pn: string): Promise<string | undefined> {
+			// Check reverse cache first
+			const cachedLid = pnToLidCache.get(pn)
+			if (cachedLid) {
+				return cachedLid
+			}
+
+			// Search in the forward cache (less efficient but ensures consistency)
+			for (const [lid, cachedPn] of lidMappingCache.entries()) {
+				if (cachedPn === pn) {
+					pnToLidCache.set(pn, lid)
+					return lid
 				}
 			}
 
