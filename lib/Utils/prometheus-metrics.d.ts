@@ -38,6 +38,7 @@ export declare class BaileysPrometheusMetrics {
     messagesSentTotal?: Counter<string>;
     messagesRetryTotal?: Counter<string>;
     messagesProcessingDuration?: Histogram<string>;
+    messageTypeMismatchFlushTotal?: Counter<string>;
     cacheSize?: Gauge<string>;
     cacheEvictionsTotal?: Counter<string>;
     cacheHitRate?: Gauge<string>;
@@ -141,6 +142,12 @@ export declare class BaileysPrometheusMetrics {
      * Record message processing duration
      */
     recordMessageProcessingDuration(messageType: string, durationMs: number): void;
+    /**
+     * Record message type mismatch flush
+     * This happens when buffered messages have a different type than incoming messages,
+     * requiring an early flush to prevent type information loss (overshadowing)
+     */
+    recordMessageTypeMismatchFlush(bufferedType: string, newType: string): void;
     /**
      * Update cache size
      */

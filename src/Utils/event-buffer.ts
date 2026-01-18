@@ -1,6 +1,5 @@
 import EventEmitter from 'events'
-import { proto } from '../../WAProto'
-import {
+import type {
 	BaileysEvent,
 	BaileysEventEmitter,
 	BaileysEventMap,
@@ -9,10 +8,11 @@ import {
 	ChatUpdate,
 	Contact,
 	WAMessage,
-	WAMessageStatus
+	WAMessageKey
 } from '../Types'
+import { WAMessageStatus } from '../Types'
 import { trimUndefined } from './generics'
-import { ILogger } from './logger'
+import type { ILogger } from './logger'
 import { updateMessageWithReaction, updateMessageWithReceipt } from './messages'
 import { isRealMessage, shouldIncrementChatUnread } from './process-message'
 import { logEventBuffer, logBufferMetrics } from './baileys-logger'
@@ -268,6 +268,9 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 	let data = makeBufferData()
 	let buffersInProgress = 0
 	let autoFlushTimer: NodeJS.Timeout | null = null
+	// FIX: Added flushPendingTimeout to prevent memory leak in createBufferedFunction
+	// This ensures we only schedule ONE timeout for debounced flush, not thousands
+	let flushPendingTimeout: NodeJS.Timeout | null = null
 	let isDestroyed = false
 	let bufferMetrics = {
 		itemsBuffered: 0,
@@ -303,7 +306,7 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 	// take the generic event and fire it as a baileys event
 	ev.on('event', (map: BaileysEventData) => {
 		for (const event in map) {
-			ev.emit(event, map[event])
+			ev.emit(event, map[event as keyof BaileysEventMap])
 		}
 	})
 
@@ -380,6 +383,12 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 		if (autoFlushTimer) {
 			clearTimeout(autoFlushTimer)
 			autoFlushTimer = null
+		}
+
+		// FIX: Clear flushPendingTimeout to prevent memory leak
+		if (flushPendingTimeout) {
+			clearTimeout(flushPendingTimeout)
+			flushPendingTimeout = null
 		}
 
 		// Track flush start time for adaptive metrics
@@ -474,7 +483,18 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 
 		// Log metrics periodically (every 10 flushes)
 		if (bufferMetrics.flushCount % 10 === 0) {
-			const metricsToLog: any = {
+			const metricsToLog: {
+				itemsBuffered: number
+				flushCount: number
+				historyCacheSize: number
+				buffersInProgress: number
+				adaptive?: {
+					mode: string
+					timeout: number
+					eventRate: number
+					isHealthy: boolean
+				}
+			} = {
 				itemsBuffered: bufferMetrics.itemsBuffered,
 				flushCount: bufferMetrics.flushCount,
 				historyCacheSize: bufferMetrics.historyCacheSize,
@@ -557,7 +577,8 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 			itemsBuffered: bufferMetrics.itemsBuffered,
 			flushCount: bufferMetrics.flushCount,
 			historyCacheSize: bufferMetrics.historyCacheSize,
-			hasAutoFlushTimer: !!autoFlushTimer
+			hasAutoFlushTimer: !!autoFlushTimer,
+			hasFlushPendingTimeout: !!flushPendingTimeout
 		}, 'destroying event buffer')
 		isDestroyed = true
 
@@ -568,13 +589,24 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 			autoFlushTimer = null
 		}
 
+		// FIX: Clear flushPendingTimeout to prevent memory leak
+		if (flushPendingTimeout) {
+			logger.debug('clearing flushPendingTimeout to prevent memory leak')
+			clearTimeout(flushPendingTimeout)
+			flushPendingTimeout = null
+		}
+
 		// Final flush to ensure no data loss (only if there's buffered data)
 		if (buffersInProgress > 0) {
 			logger.debug({
 				buffersInProgress,
 				itemsBuffered: bufferMetrics.itemsBuffered
 			}, 'performing final flush before destroying buffer')
+
+			// Temporarily mark as not destroyed to allow final flush
+			isDestroyed = false
 			flush(true)
+			isDestroyed = true
 
 			// Record Prometheus metric for final flush
 			const prometheus = getPrometheus()
@@ -621,8 +653,8 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 
 	return {
 		process(handler) {
-			const listener = (map: BaileysEventData) => {
-				handler(map)
+			const listener = async (map: BaileysEventData) => {
+				await handler(map)
 			}
 
 			ev.on('event', listener)
@@ -631,6 +663,43 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 			}
 		},
 		emit<T extends BaileysEvent>(event: BaileysEvent, evData: BaileysEventMap[T]) {
+			// FIX: Check if this is a messages.upsert with a different type than what's buffered
+			// If so, emit the buffered messages first to avoid type overshadowing
+			// This prevents loss of message type information during buffering
+			if (event === 'messages.upsert' && buffersInProgress) {
+				const { type } = evData as BaileysEventMap['messages.upsert']
+				const existingUpserts = Object.values(data.messageUpserts)
+				if (existingUpserts.length > 0) {
+					const bufferedType = existingUpserts[0]?.type
+					if (bufferedType && bufferedType !== type) {
+						logger.debug({ bufferedType, newType: type }, 'messages.upsert type mismatch, emitting buffered messages')
+
+						// Record Prometheus metric for type mismatch flush
+						const prometheus = getPrometheus()
+						if (prometheus) {
+							prometheus.recordMessageTypeMismatchFlush(bufferedType, type)
+						}
+
+						// Emit the buffered messages with their correct type
+						ev.emit('event', {
+							'messages.upsert': {
+								messages: existingUpserts.map(m => m.message),
+								type: bufferedType
+							}
+						})
+						// Clear the message upserts from the buffer
+						data.messageUpserts = {}
+
+						// Log the type mismatch event
+						logEventBuffer('type_mismatch_flush', {
+							bufferedType,
+							newType: type,
+							messageCount: existingUpserts.length
+						})
+					}
+				}
+			}
+
 			if (buffersInProgress && BUFFERABLE_EVENT_SET.has(event)) {
 				// Check if buffer is getting too large
 				bufferMetrics.itemsBuffered += 1
@@ -682,9 +751,33 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 				buffer()
 				try {
 					const result = await work(...args)
+					// FIX: If this is the only buffer, flush after a small delay
+					// This allows nested buffers to complete before flushing
+					if (buffersInProgress === 1) {
+						setTimeout(() => {
+							if (buffersInProgress === 1 && !isDestroyed) {
+								flush()
+							}
+						}, 100) // Small delay to allow nested buffers
+					}
+
 					return result
+				} catch (error) {
+					throw error
 				} finally {
-					flush()
+					buffersInProgress = Math.max(0, buffersInProgress - 1)
+					if (buffersInProgress === 0) {
+						// FIX: Only schedule ONE timeout, not thousands
+						// This prevents memory leak from accumulating timeouts
+						if (!flushPendingTimeout && !isDestroyed) {
+							flushPendingTimeout = setTimeout(() => {
+								flushPendingTimeout = null
+								if (!isDestroyed) {
+									flush()
+								}
+							}, 100)
+						}
+					}
 				}
 			}
 		},
@@ -729,14 +822,15 @@ function append<E extends BufferableEvent>(
 	switch (event) {
 		case 'messaging-history.set':
 			for (const chat of eventData.chats as Chat[]) {
-				const existingChat = data.historySets.chats[chat.id]
+				const id = chat.id || ''
+				const existingChat = data.historySets.chats[id]
 				if (existingChat) {
 					existingChat.endOfHistoryTransferType = chat.endOfHistoryTransferType
 				}
 
-				if (!existingChat && !historyCache.has(chat.id)) {
-					data.historySets.chats[chat.id] = chat
-					historyCache.add(chat.id)
+				if (!existingChat && !historyCache.has(id)) {
+					data.historySets.chats[id] = chat
+					historyCache.add(id)
 
 					absorbingChatUpdate(chat)
 				}
@@ -774,11 +868,12 @@ function append<E extends BufferableEvent>(
 			break
 		case 'chats.upsert':
 			for (const chat of eventData as Chat[]) {
-				let upsert = data.chatUpserts[chat.id]
-				if (!upsert) {
-					upsert = data.historySets[chat.id]
+				const id = chat.id || ''
+				let upsert = data.chatUpserts[id]
+				if (id && !upsert) {
+					upsert = data.historySets.chats[id]
 					if (upsert) {
-						logger.debug({ chatId: chat.id }, 'absorbed chat upsert in chat set')
+						logger.debug({ chatId: id }, 'absorbed chat upsert in chat set')
 					}
 				}
 
@@ -786,13 +881,13 @@ function append<E extends BufferableEvent>(
 					upsert = concatChats(upsert, chat)
 				} else {
 					upsert = chat
-					data.chatUpserts[chat.id] = upsert
+					data.chatUpserts[id] = upsert
 				}
 
 				absorbingChatUpdate(upsert)
 
-				if (data.chatDeletes.has(chat.id)) {
-					data.chatDeletes.delete(chat.id)
+				if (data.chatDeletes.has(id)) {
+					data.chatDeletes.delete(id)
 				}
 			}
 
@@ -866,7 +961,7 @@ function append<E extends BufferableEvent>(
 				}
 
 				if (data.contactUpdates[contact.id]) {
-					upsert = Object.assign(data.contactUpdates[contact.id], trimUndefined(contact)) as Contact
+					upsert = Object.assign(data.contactUpdates[contact.id]!, trimUndefined(contact)) as Contact
 					delete data.contactUpdates[contact.id]
 				}
 			}
@@ -919,7 +1014,7 @@ function append<E extends BufferableEvent>(
 					}
 				}
 
-				// Log all messages buffered (BAILEYS_LOG)
+				// Log all messages buffered (trace level)
 				logger.trace({
 					messageId: key,
 					fromMe: message.key.fromMe,
@@ -1017,7 +1112,7 @@ function append<E extends BufferableEvent>(
 	}
 
 	function absorbingChatUpdate(existing: Chat) {
-		const chatId = existing.id
+		const chatId = existing.id || ''
 		const update = data.chatUpdates[chatId]
 		if (update) {
 			const conditionMatches = update.conditional ? update.conditional(data) : true
@@ -1085,7 +1180,7 @@ function consolidateEvents(data: BufferedEventData) {
 
 	const messageUpsertList = Object.values(data.messageUpserts)
 	if (messageUpsertList.length) {
-		const type = messageUpsertList[0].type
+		const type = messageUpsertList[0]!.type
 		map['messages.upsert'] = {
 			messages: messageUpsertList.map(m => m.message),
 			type
@@ -1153,4 +1248,4 @@ function concatChats<C extends Partial<Chat>>(a: C, b: Partial<Chat>) {
 	return Object.assign(a, b)
 }
 
-const stringifyMessageKey = (key: proto.IMessageKey) => `${key.remoteJid},${key.id},${key.fromMe ? '1' : '0'}`
+const stringifyMessageKey = (key: WAMessageKey) => `${key.remoteJid},${key.id},${key.fromMe ? '1' : '0'}`
