@@ -4,19 +4,18 @@ import { randomBytes } from 'crypto'
 import Long = require('long')
 import { proto } from '../../WAProto'
 import { DEFAULT_CACHE_TTLS, DEFAULT_CACHE_MAX_KEYS, KEY_BUNDLE_TYPE, MIN_PREKEY_COUNT } from '../Defaults'
-import {
+import type {
 	MessageReceiptType,
 	MessageRelayOptions,
 	MessageUserReceipt,
 	SocketConfig,
 	WACallEvent,
 	WAMessageKey,
-	WAMessageStatus,
-	WAMessageStubType,
 	WAPatchName,
 	WAPresence,
 	PresenceData
 } from '../Types'
+import { WAMessageStatus, WAMessageStubType } from '../Types'
 import {
 	aesDecryptCTR,
 	aesEncryptGCM,
@@ -50,12 +49,14 @@ import { getPrometheus } from '../Utils/prometheus-metrics'
 import {
 	areJidsSameUser,
 	BinaryNode,
+	binaryNodeToString,
 	getAllBinaryNodeChildren,
 	getBinaryNodeChild,
 	getBinaryNodeChildBuffer,
 	getBinaryNodeChildren,
 	getBinaryNodeChildString,
 	isJidGroup,
+	isJidNewsletter,
 	isJidStatusBroadcast,
 	isJidUser,
 	isLidUser,
@@ -65,7 +66,6 @@ import {
 } from '../WABinary'
 import { extractGroupMetadata } from './groups'
 import { makeMessagesSocket } from './messages-send'
-
 
 export const makeMessagesRecvSocket = (config: SocketConfig) => {
 	const { logger, retryRequestDelayMs, maxMsgRetryCount, getMessage, shouldIgnoreJid } = config
@@ -99,7 +99,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 
 	logger.warn(
 		{
-				component: 'CircuitBreaker',
+			component: 'CircuitBreaker',
 			failureThreshold: 5,
 			failureWindow: '60s',
 			openTimeout: '30s',
@@ -134,14 +134,229 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 			useClones: false
 		})
 
+	// Debounce identity-change session refreshes per JID to avoid bursts
+	const identityAssertDebounce = new NodeCache({
+		stdTTL: 5,
+		useClones: false
+	})
+
 	let sendActiveReceipts = false
+
+	const fetchMessageHistory = async (
+		count: number,
+		oldestMsgKey: WAMessageKey,
+		oldestMsgTimestamp: number | Long
+	): Promise<string> => {
+		if (!authState.creds.me?.id) {
+			throw new Boom('Not authenticated')
+		}
+
+		const pdoMessage: proto.Message.IPeerDataOperationRequestMessage = {
+			historySyncOnDemandRequest: {
+				chatJid: oldestMsgKey.remoteJid,
+				oldestMsgFromMe: oldestMsgKey.fromMe,
+				oldestMsgId: oldestMsgKey.id,
+				oldestMsgTimestampMs: oldestMsgTimestamp,
+				onDemandMsgCount: count
+			},
+			peerDataOperationRequestType: proto.Message.PeerDataOperationRequestType.HISTORY_SYNC_ON_DEMAND
+		}
+
+		return sendPeerDataOperationMessage(pdoMessage)
+	}
+
+	const requestPlaceholderResend = async (messageKey: WAMessageKey): Promise<string | undefined> => {
+		if (!authState.creds.me?.id) {
+			throw new Boom('Not authenticated')
+		}
+
+		if (placeholderResendCache.get(messageKey?.id!)) {
+			logger.debug({ messageKey }, 'already requested resend')
+			return
+		} else {
+			placeholderResendCache.set(messageKey?.id!, true)
+		}
+
+		await delay(5000)
+
+		if (!placeholderResendCache.get(messageKey?.id!)) {
+			logger.debug({ messageKey }, 'message received while resend requested')
+			return 'RESOLVED'
+		}
+
+		const pdoMessage = {
+			placeholderMessageResendRequest: [
+				{
+					messageKey
+				}
+			],
+			peerDataOperationRequestType: proto.Message.PeerDataOperationRequestType.PLACEHOLDER_MESSAGE_RESEND
+		}
+
+		setTimeout(() => {
+			if (placeholderResendCache.get(messageKey?.id!)) {
+				logger.debug({ messageKey }, 'PDO message without response after 15 seconds. Phone possibly offline')
+				placeholderResendCache.del(messageKey?.id!)
+			}
+		}, 15_000)
+
+		return sendPeerDataOperationMessage(pdoMessage)
+	}
+
+	// Handles mex newsletter notifications
+	const handleMexNewsletterNotification = async (node: BinaryNode) => {
+		const mexNode = getBinaryNodeChild(node, 'mex')
+		if (!mexNode?.content) {
+			logger.warn({ node }, 'Invalid mex newsletter notification')
+			return
+		}
+
+		let data: any
+		try {
+			data = JSON.parse(mexNode.content.toString())
+		} catch (error) {
+			logger.error({ err: error, node }, 'Failed to parse mex newsletter notification')
+			return
+		}
+
+		const operation = data?.operation
+		const updates = data?.updates
+
+		if (!updates || !operation) {
+			logger.warn({ data }, 'Invalid mex newsletter notification content')
+			return
+		}
+
+		logger.warn({ operation, updates }, 'got mex newsletter notification')
+
+		switch (operation) {
+			case 'NotificationNewsletterUpdate':
+				for (const update of updates) {
+					if (update.jid && update.settings && Object.keys(update.settings).length > 0) {
+						ev.emit('newsletter-settings.update', {
+							id: update.jid,
+							update: update.settings
+						})
+					}
+				}
+				break
+
+			case 'NotificationNewsletterAdminPromote':
+				for (const update of updates) {
+					if (update.jid && update.user) {
+						ev.emit('newsletter-participants.update', {
+							id: update.jid,
+							author: node.attrs.from!,
+							user: update.user,
+							new_role: 'ADMIN',
+							action: 'promote'
+						})
+					}
+				}
+				break
+
+			default:
+				logger.warn({ operation, data }, 'Unhandled mex newsletter notification')
+				break
+		}
+	}
+
+	// Handles newsletter notifications
+	const handleNewsletterNotification = async (node: BinaryNode) => {
+		const from = node.attrs.from!
+		const child = getAllBinaryNodeChildren(node)[0]!
+		const author = node.attrs.participant!
+
+		logger.warn({ from, child }, 'got newsletter notification')
+
+		switch (child.tag) {
+			case 'reaction':
+				const reactionUpdate = {
+					id: from,
+					server_id: child.attrs.message_id!,
+					reaction: {
+						code: getBinaryNodeChildString(child, 'reaction'),
+						count: 1
+					}
+				}
+				ev.emit('newsletter.reaction', reactionUpdate)
+				break
+
+			case 'view':
+				const viewUpdate = {
+					id: from,
+					server_id: child.attrs.message_id!,
+					count: parseInt(child.content?.toString() || '0', 10)
+				}
+				ev.emit('newsletter.view', viewUpdate)
+				break
+
+			case 'participant':
+				const participantUpdate = {
+					id: from,
+					author,
+					user: child.attrs.jid!,
+					action: child.attrs.action!,
+					new_role: child.attrs.role!
+				}
+				ev.emit('newsletter-participants.update', participantUpdate)
+				break
+
+			case 'update':
+				const settingsNode = getBinaryNodeChild(child, 'settings')
+				if (settingsNode) {
+					const update: Record<string, any> = {}
+					const nameNode = getBinaryNodeChild(settingsNode, 'name')
+					if (nameNode?.content) update.name = nameNode.content.toString()
+
+					const descriptionNode = getBinaryNodeChild(settingsNode, 'description')
+					if (descriptionNode?.content) update.description = descriptionNode.content.toString()
+
+					ev.emit('newsletter-settings.update', {
+						id: from,
+						update
+					})
+				}
+				break
+
+			case 'message':
+				const plaintextNode = getBinaryNodeChild(child, 'plaintext')
+				if (plaintextNode?.content) {
+					try {
+						const contentBuf =
+							typeof plaintextNode.content === 'string'
+								? Buffer.from(plaintextNode.content, 'binary')
+								: Buffer.from(plaintextNode.content as Uint8Array)
+						const messageProto = proto.Message.decode(contentBuf)
+						const fullMessage = proto.WebMessageInfo.fromObject({
+							key: {
+								remoteJid: from,
+								id: child.attrs.message_id || child.attrs.server_id,
+								fromMe: false
+							},
+							message: messageProto,
+							messageTimestamp: +child.attrs.t!
+						})
+						await upsertMessage(fullMessage, 'append')
+						logger.warn('Processed plaintext newsletter message')
+					} catch (error) {
+						logger.error({ error }, 'Failed to decode plaintext newsletter message')
+					}
+				}
+				break
+
+			default:
+				logger.warn({ node }, 'Unknown newsletter notification')
+				break
+		}
+	}
 
 	const sendMessageAck = async ({ tag, attrs, content }: BinaryNode, errorCode?: number) => {
 		const stanza: BinaryNode = {
 			tag: 'ack',
 			attrs: {
-				id: attrs.id,
-				to: attrs.from,
+				id: attrs.id!,
+				to: attrs.from!,
 				class: tag
 			}
 		}
@@ -213,13 +428,6 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 
 		const { account, signedPreKey, signedIdentityKey: identityKey } = authState.creds
 
-		if (retryCount === 1) {
-			//request a resend via phone
-			//const msgId = await requestPlaceholderResend(msgKey)
-			//logger.debug(`sendRetryRequest: requested placeholder resend for message ${msgId}`)
-			//desabilitado por mau funcionamento
-		}
-
 		const deviceIdentity = encodeSignedDeviceIdentity(account!, true)
 		await authState.keys.transaction(async () => {
 			const receipt: BinaryNode = {
@@ -227,15 +435,15 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 				attrs: {
 					id: msgId,
 					type: 'retry',
-					to: node.attrs.from
+					to: node.attrs.from!
 				},
 				content: [
 					{
 						tag: 'retry',
 						attrs: {
 							count: retryCount.toString(),
-							id: node.attrs.id,
-							t: node.attrs.t,
+							id: node.attrs.id!,
+							t: node.attrs.t!,
 							v: '1'
 						}
 					},
@@ -255,12 +463,12 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 				receipt.attrs.participant = node.attrs.participant
 			}
 
-			if (retryCount <=2 && forceIncludeKeys) {
-				await assertSessions([jidNormalizedUser(author)], true);
+			if (retryCount <= 2 && forceIncludeKeys) {
+				await assertSessions([jidNormalizedUser(author)], true)
 				const { update, preKeys } = await getNextPreKeys(authState, 1)
 
 				const [keyId] = Object.keys(preKeys)
-				const key = preKeys[+keyId]
+				const key = preKeys[+keyId!]
 
 				const content = receipt.content! as BinaryNode[]
 				content.push({
@@ -269,7 +477,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 					content: [
 						{ tag: 'type', attrs: {}, content: Buffer.from(KEY_BUNDLE_TYPE) },
 						{ tag: 'identity', attrs: {}, content: identityKey.public },
-						xmppPreKey(key, +keyId),
+						xmppPreKey(key!, +keyId!),
 						xmppSignedPreKey(signedPreKey),
 						{ tag: 'device-identity', attrs: {}, content: deviceIdentity }
 					]
@@ -288,7 +496,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		const from = node.attrs.from
 		if (from === S_WHATSAPP_NET) {
 			const countChild = getBinaryNodeChild(node, 'count')
-			const count = +countChild!.attrs.value
+			const count = +countChild!.attrs.value!
 			const shouldUploadMorePreKeys = count < MIN_PREKEY_COUNT
 
 			logger.debug({ count, shouldUploadMorePreKeys }, 'recv pre-key count')
@@ -299,8 +507,18 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 			const identityNode = getBinaryNodeChild(node, 'identity')
 			if (identityNode) {
 				logger.warn({ jid: from }, 'identity changed')
-				// not handling right now
-				// signal will override new identity anyway
+
+				if (identityAssertDebounce.get(from!)) {
+					logger.debug({ jid: from }, 'skipping identity assert (debounced)')
+					return
+				}
+
+				identityAssertDebounce.set(from!, true)
+				try {
+					await assertSessions([from!], true)
+				} catch (error) {
+					logger.warn({ error, jid: from }, 'failed to assert sessions after identity change')
+				}
 			} else {
 				logger.warn({ node }, 'unknown encrypt notification')
 			}
@@ -341,7 +559,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 				}
 				break
 			case 'modify':
-				const oldNumber = getBinaryNodeChildren(child, 'participant').map(p => p.attrs.jid)
+				const oldNumber = getBinaryNodeChildren(child, 'participant').map(p => p.attrs.jid!)
 				msg.messageStubParameters = oldNumber || []
 				msg.messageStubType = WAMessageStubType.GROUP_PARTICIPANT_CHANGE_NUMBER
 				break
@@ -351,13 +569,11 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 			case 'add':
 			case 'leave':
 				const stubType = `GROUP_PARTICIPANT_${child.tag.toUpperCase()}`
-				msg.messageStubType = WAMessageStubType[stubType]
+				msg.messageStubType = WAMessageStubType[stubType as keyof typeof WAMessageStubType]
 
-				const participants = getBinaryNodeChildren(child, 'participant').map(p => p.attrs.jid)
+				const participants = getBinaryNodeChildren(child, 'participant').map(p => p.attrs.jid!)
 				if (
 					participants.length === 1 &&
-					// if recv. "remove" message and sender removed themselves
-					// mark as left
 					areJidsSameUser(participants[0], participant) &&
 					child.tag === 'remove'
 				) {
@@ -368,7 +584,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 				break
 			case 'subject':
 				msg.messageStubType = WAMessageStubType.GROUP_CHANGE_SUBJECT
-				msg.messageStubParameters = [child.attrs.subject]
+				msg.messageStubParameters = [child.attrs.subject!]
 				break
 			case 'description':
 				const description = getBinaryNodeChild(child, 'body')?.content?.toString()
@@ -387,7 +603,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 				break
 			case 'invite':
 				msg.messageStubType = WAMessageStubType.GROUP_CHANGE_INVITE_LINK
-				msg.messageStubParameters = [child.attrs.code]
+				msg.messageStubParameters = [child.attrs.code!]
 				break
 			case 'member_add_mode':
 				const addMode = child.content
@@ -395,19 +611,17 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 					msg.messageStubType = WAMessageStubType.GROUP_MEMBER_ADD_MODE
 					msg.messageStubParameters = [addMode.toString()]
 				}
-
 				break
 			case 'membership_approval_mode':
 				const approvalMode = getBinaryNodeChild(child, 'group_join')
 				if (approvalMode) {
 					msg.messageStubType = WAMessageStubType.GROUP_MEMBERSHIP_JOIN_APPROVAL_MODE
-					msg.messageStubParameters = [approvalMode.attrs.state]
+					msg.messageStubParameters = [approvalMode.attrs.state!]
 				}
-
 				break
 			case 'created_membership_requests':
 				msg.messageStubType = WAMessageStubType.GROUP_MEMBERSHIP_JOIN_APPROVAL_REQUEST_NON_ADMIN_ADD
-				msg.messageStubParameters = [participantJid, 'created', child.attrs.request_method]
+				msg.messageStubParameters = [participantJid, 'created', child.attrs.request_method!]
 				break
 			case 'revoked_membership_requests':
 				const isDenied = areJidsSameUser(participantJid, participant)
@@ -437,7 +651,6 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 
 					logger.debug({ jid }, 'got privacy token update')
 				}
-
 				break
 			case 'newsletter':
 				await handleNewsletterNotification(node)
@@ -446,7 +659,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 				await handleMexNewsletterNotification(node)
 				break
 			case 'w:gp2':
-				handleGroupNotification(node.attrs.participant, child, result)
+				handleGroupNotification(node.attrs.participant, child!, result)
 				break
 			case 'mediaretry':
 				const event = decodeMediaRetryNode(node)
@@ -457,11 +670,10 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 				break
 			case 'devices':
 				const devices = getBinaryNodeChildren(child, 'device')
-				if (areJidsSameUser(child.attrs.jid, authState.creds.me!.id)) {
+				if (areJidsSameUser(child!.attrs.jid, authState.creds.me!.id)) {
 					const deviceJids = devices.map(d => d.attrs.jid)
 					logger.warn({ deviceJids }, 'got my own devices')
 				}
-
 				break
 			case 'server_sync':
 				const update = getBinaryNodeChild(node, 'collection')
@@ -469,7 +681,6 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 					const name = update.attrs.name as WAPatchName
 					await resyncAppState([name], false)
 				}
-
 				break
 			case 'picture':
 				const setPicture = getBinaryNodeChild(node, 'set')
@@ -487,7 +698,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 					result.messageStubType = WAMessageStubType.GROUP_CHANGE_ICON
 
 					if (setPicture) {
-						result.messageStubParameters = [setPicture.attrs.id]
+						result.messageStubParameters = [setPicture.attrs.id!]
 					}
 
 					result.participant = node?.attrs.author
@@ -496,12 +707,11 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 						participant: setPicture?.attrs.author
 					}
 				}
-
 				break
 			case 'account_sync':
-				if (child.tag === 'disappearing_mode') {
-					const newDuration = +child.attrs.duration
-					const timestamp = +child.attrs.t
+				if (child!.tag === 'disappearing_mode') {
+					const newDuration = +child!.attrs.duration!
+					const timestamp = +child!.attrs.t!
 
 					logger.warn({ newDuration }, 'updated account disappearing mode')
 
@@ -514,16 +724,15 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 							}
 						}
 					})
-				} else if (child.tag === 'blocklist') {
+				} else if (child!.tag === 'blocklist') {
 					const blocklists = getBinaryNodeChildren(child, 'item')
 
 					for (const { attrs } of blocklists) {
-						const blocklist = [attrs.jid]
+						const blocklist = [attrs.jid!]
 						const type = attrs.action === 'block' ? 'add' : 'remove'
 						ev.emit('blocklist.update', { blocklist, type })
 					}
 				}
-
 				break
 			case 'link_code_companion_reg':
 				const linkCodeCompanionReg = getBinaryNodeChild(node, 'link_code_companion_reg')
@@ -593,6 +802,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 				})
 				authState.creds.registered = true
 				ev.emit('creds.update', authState.creds)
+				break
 		}
 
 		if (Object.keys(result).length) {
@@ -630,15 +840,10 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 	}
 
 	const sendMessagesAgain = async (key: proto.IMessageKey, ids: string[], retryNode: BinaryNode) => {
-		// todo: implement a cache to store the last 256 sent messages (copy whatsmeow)
 		const msgs = await Promise.all(ids.map(id => getMessage({ ...key, id })))
 		const remoteJid = key.remoteJid!
 		const participant = key.participant || remoteJid
-		// if it's the primary jid sending the request
-		// just re-send the message to everyone
-		// prevents the first message decryption failure
 		const sendToAll = !jidDecode(participant)?.device
-		//await assertSessions([participant], true)
 
 		if (isJidGroup(remoteJid)) {
 			await authState.keys.set({ 'sender-key-memory': { [remoteJid]: null } })
@@ -649,14 +854,13 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		for (const [i, msg] of msgs.entries()) {
 			if (msg) {
 				updateSendMessageAgainCount(ids[i], participant)
-				const msgRelayOpts: MessageRelayOptions = { messageId: ids[i], isretry:true }				
-					msgRelayOpts.participant = {
-						jid: participant,
-						count: +retryNode.attrs.count					
-					
+				const msgRelayOpts: MessageRelayOptions = { messageId: ids[i], isretry: true }
+				msgRelayOpts.participant = {
+					jid: participant,
+					count: +retryNode.attrs.count!
 				}
 
-				await relayMessage(key.remoteJid!, msg, msgRelayOpts,)
+				await relayMessage(key.remoteJid!, msg, msgRelayOpts)
 			} else {
 				logger.debug({ jid: key.remoteJid, id: ids[i] }, 'recv retry request, but message not available')
 			}
@@ -665,7 +869,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 
 	const handleReceipt = async (node: BinaryNode) => {
 		const { attrs, content } = node
-		const isLid = attrs.from.includes('lid')
+		const isLid = attrs.from!.includes('lid')
 		const isNodeFromMe = areJidsSameUser(
 			attrs.participant || attrs.from,
 			isLid ? authState.creds.me?.lid : authState.creds.me?.id
@@ -680,16 +884,16 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 			participant: attrs.participant
 		}
 
-		if (remoteJid && shouldIgnoreJid(remoteJid) && remoteJid !== '@s.whatsapp.net') {
+		if (remoteJid && shouldIgnoreJid(remoteJid) && remoteJid !== S_WHATSAPP_NET) {
 			logger.debug({ remoteJid }, 'ignoring receipt from jid')
 			await sendMessageAck(node)
 			return
 		}
 
-		const ids = [attrs.id]
+		const ids = [attrs.id!]
 		if (Array.isArray(content)) {
 			const items = getBinaryNodeChildren(content[0], 'item')
-			ids.push(...items.map(i => i.attrs.id))
+			ids.push(...items.map(i => i.attrs.id!))
 		}
 
 		try {
@@ -698,11 +902,9 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 					const status = getStatusFromReceiptType(attrs.type)
 					if (
 						typeof status !== 'undefined' &&
-						// basically, we only want to know when a message from us has been delivered to/read by the other person
-						// or another device of ours has read some messages
 						(status >= proto.WebMessageInfo.Status.SERVER_ACK || !isNodeFromMe)
 					) {
-						if (isJidGroup(remoteJid) || isJidStatusBroadcast(remoteJid)) {
+						if (isJidGroup(remoteJid) || isJidStatusBroadcast(remoteJid!)) {
 							if (attrs.participant) {
 								const updateKey: keyof MessageUserReceipt =
 									status === proto.WebMessageInfo.Status.DELIVERY_ACK ? 'receiptTimestamp' : 'readTimestamp'
@@ -712,7 +914,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 										key: { ...key, id },
 										receipt: {
 											userJid: jidNormalizedUser(attrs.participant),
-											[updateKey]: +attrs.t
+											[updateKey]: +attrs.t!
 										}
 									}))
 								)
@@ -729,16 +931,15 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 					}
 
 					if (attrs.type === 'retry') {
-						// correctly set who is asking for the retry
 						key.participant = key.participant || attrs.from
 						const retryNode = getBinaryNodeChild(node, 'retry')
-						if (willSendMessageAgain(ids[0], key.participant)) {
+						if (willSendMessageAgain(ids[0], key.participant!)) {
 							if (key.fromMe) {
 								try {
 									logger.debug({ attrs, key }, 'recv retry request')
 									await sendMessagesAgain(key, ids, retryNode!)
 								} catch (error) {
-									logger.error({ key, ids, trace: error.stack }, 'error in sending message again')
+									logger.error({ key, ids, trace: (error as Error).stack }, 'error in sending message again')
 								}
 							} else {
 								logger.warn({ attrs, key }, 'recv retry for not fromMe message')
@@ -756,7 +957,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 
 	const handleNotification = async (node: BinaryNode) => {
 		const remoteJid = node.attrs.from
-		if (shouldIgnoreJid(remoteJid) && remoteJid !== '@s.whatsapp.net') {
+		if (shouldIgnoreJid(remoteJid!) && remoteJid !== S_WHATSAPP_NET) {
 			logger.debug({ remoteJid, id: node.attrs.id }, 'ignored notification')
 			await sendMessageAck(node)
 			return
@@ -776,7 +977,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 							...(msg.key || {})
 						}
 						msg.participant ??= node.attrs.participant
-						msg.messageTimestamp = +node.attrs.t
+						msg.messageTimestamp = +node.attrs.t!
 
 						const fullMsg = proto.WebMessageInfo.fromObject(msg)
 						await upsertMessage(fullMsg, 'append')
@@ -789,7 +990,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 	}
 
 	const handleMessage = async (node: BinaryNode) => {
-		if (shouldIgnoreJid(node.attrs.from) && node.attrs.from !== '@s.whatsapp.net') {
+		if (shouldIgnoreJid(node.attrs.from!) && node.attrs.from !== S_WHATSAPP_NET) {
 			logger.debug({ key: node.attrs.key }, 'ignored message')
 			await sendMessageAck(node)
 			return
@@ -804,27 +1005,6 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 			return
 		}
 
-		let response: string | undefined
-		/*
-
-		if (getBinaryNodeChild(node, 'unavailable') && !encNode) {
-			await sendMessageAck(node)
-			const { key } = decodeMessageNode(node, authState.creds.me!.id, authState.creds.me!.lid || '').fullMessage
-			response = await requestPlaceholderResend(key)
-			if (response === 'RESOLVED') {
-				return
-			}
-
-			logger.debug('received unavailable message, acked and requested resend from phone')
-		} else {
-			if (placeholderResendCache.get(node.attrs.id)) {
-				placeholderResendCache.del(node.attrs.id)
-			}
-		}
-
-		//desabilitado por mau funcionamento.
-			*/
-
 		const {
 			fullMessage: msg,
 			category,
@@ -832,16 +1012,13 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 			decrypt
 		} = decryptMessageNode(node, authState.creds.me!.id, authState.creds.me!.lid || '', signalRepository, logger)
 
-		if (response && msg?.messageStubParameters?.[0] === NO_MESSAGE_FOUND_ERROR_TEXT) {
-			msg.messageStubParameters = [NO_MESSAGE_FOUND_ERROR_TEXT, response]
-		}
-
 		if (
 			msg.message?.protocolMessage?.type === proto.Message.ProtocolMessage.Type.SHARE_PHONE_NUMBER &&
 			node.attrs.sender_pn
 		) {
 			ev.emit('chats.phoneNumberShare', { lid: node.attrs.from, jid: node.attrs.sender_pn })
 		}
+
 		if (msg.messageStubType === proto.WebMessageInfo.StubType.CIPHERTEXT) {
 			if (
 				msg?.messageStubParameters?.[0] === MISSING_KEYS_ERROR_TEXT ||
@@ -892,13 +1069,10 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 									const retryCount = msgRetryCache.get<number>(key) || 0
 									const maxRetries = config.maxMsgRetryCount
 
-									// Log decrypt failed with retry count (controlled by BAILEYS_LOG environment variable)
+									// Log decrypt failed with retry count
 									logMessage('decrypt_failed', { messageId: msgId, retryCount: retryCount + 1, maxRetries })
 
-									// Calculate exponential backoff with jitter to prevent thundering herd
-									// Uses configurable delays and jitter factor from SocketConfig
-									// Default: [1s, 2s, 5s, 10s, 20s] with 15% jitter
-									// Jitter prevents multiple clients from retrying at exactly the same time
+									// Calculate exponential backoff with jitter
 									if (retryCount > 0) {
 										const backoffDelay = getBackoffDelay(retryCount, config)
 										logger.debug(
@@ -908,14 +1082,13 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 										await delay(backoffDelay)
 									}
 
-									await sendRetryRequest(node, true)
+									await sendRetryRequest(node, !encNode)
 
 									// Record success in circuit breaker
 									prekeyCircuitBreaker.recordSuccess()
 
 									const cbStats = prekeyCircuitBreaker.getStats()
 
-									// Log retry success (controlled by BAILEYS_LOG environment variable)
 									baileysLog(`✅ Message retry successful - CB State: ${cbStats.state}, Failures: ${cbStats.failures}, RetryCount: ${retryCount}`)
 									logger.warn(
 										{
@@ -932,12 +1105,11 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 										await delay(retryRequestDelayMs)
 									}
 								} catch (err) {
-									// Record failure in circuit breaker
 									logger.error(
-										{ msgId: msg.key.id, error: err.message },
+										{ msgId: msg.key.id, error: (err as Error).message },
 										'Retry request failed'
 									)
-									prekeyCircuitBreaker.recordFailure(err)
+									prekeyCircuitBreaker.recordFailure(err as Error)
 									throw err
 								}
 							} else {
@@ -945,36 +1117,36 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 							}
 						})
 					} else {
-						// no type in the receipt => message delivered
-						let type: MessageReceiptType = undefined
-						let participant = msg.key.participant
-						if (category === 'peer') {
-							// special peer message
-							type = 'peer_msg'
-						} else if (msg.key.fromMe) {
-							// message was sent by us from a different device
-							type = 'sender'
-							// need to specially handle this case
-							if (isJidUser(msg.key.remoteJid!)) {
-								participant = author
+						const isNewsletter = isJidNewsletter(msg.key.remoteJid!)
+						if (!isNewsletter) {
+							// no type in the receipt => message delivered
+							let type: MessageReceiptType = undefined
+							let participant = msg.key.participant
+							if (category === 'peer') {
+								type = 'peer_msg'
+							} else if (msg.key.fromMe) {
+								type = 'sender'
+								if (isJidUser(msg.key.remoteJid!) || isLidUser(msg.key.remoteJid!)) {
+									participant = author
+								}
+							} else if (!sendActiveReceipts) {
+								type = 'inactive'
 							}
-						} else if (!sendActiveReceipts) {
-							type = 'inactive'
-						}
 
-						await sendReceipt(msg.key.remoteJid!, participant!, [msg.key.id!], type)
+							await sendReceipt(msg.key.remoteJid!, participant!, [msg.key.id!], type)
 
-						// send ack for history message
-						const isAnyHistoryMsg = getHistoryMsg(msg.message!)
-						if (isAnyHistoryMsg) {
-							const jid = jidNormalizedUser(msg.key.remoteJid!)
-							await sendReceipt(jid, undefined, [msg.key.id!], 'hist_sync')
+							// send ack for history message
+							const isAnyHistoryMsg = getHistoryMsg(msg.message!)
+							if (isAnyHistoryMsg) {
+								const jid = jidNormalizedUser(msg.key.remoteJid!)
+								await sendReceipt(jid, undefined, [msg.key.id!], 'hist_sync')
+							}
 						}
 					}
 
 					cleanMessage(msg, authState.creds.me!.id)
 
-					// Log message received successfully (controlled by BAILEYS_LOG environment variable)
+					// Log message received successfully
 					logMessage('received', {
 						messageId: msg.key.id || 'unknown',
 						from: msg.key.remoteJid || 'unknown'
@@ -1000,7 +1172,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 
 						// Record processing duration
 						const processingTime = Date.now() - (msg.messageTimestamp as number) * 1000
-						if (processingTime > 0 && processingTime < 60000) { // Only if reasonable (< 1 min)
+						if (processingTime > 0 && processingTime < 60000) {
 							prometheus.recordMessageProcessingDuration(messageType, processingTime)
 						}
 					}
@@ -1008,7 +1180,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 			])
 		} catch (error) {
 			sendMessageAck(node)
-			logger.error({ error, node }, 'error in handling message')
+			logger.error({ error, node: binaryNodeToString(node) }, 'error in handling message')
 
 			// Prometheus: Record message processing error
 			const prometheus = getPrometheus()
@@ -1018,67 +1190,6 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		}
 	}
 
-	const fetchMessageHistory = async (
-		count: number,
-		oldestMsgKey: WAMessageKey,
-		oldestMsgTimestamp: number | Long
-	): Promise<string> => {
-		if (!authState.creds.me?.id) {
-			throw new Boom('Not authenticated')
-		}
-
-		const pdoMessage: proto.Message.IPeerDataOperationRequestMessage = {
-			historySyncOnDemandRequest: {
-				chatJid: oldestMsgKey.remoteJid,
-				oldestMsgFromMe: oldestMsgKey.fromMe,
-				oldestMsgId: oldestMsgKey.id,
-				oldestMsgTimestampMs: oldestMsgTimestamp,
-				onDemandMsgCount: count
-			},
-			peerDataOperationRequestType: proto.Message.PeerDataOperationRequestType.HISTORY_SYNC_ON_DEMAND
-		}
-
-		return sendPeerDataOperationMessage(pdoMessage)
-	}
-
-	const requestPlaceholderResend = async (messageKey: WAMessageKey): Promise<string | undefined> => {
-		if (!authState.creds.me?.id) {
-			throw new Boom('Not authenticated')
-		}
-
-		if (placeholderResendCache.get(messageKey?.id!)) {
-			logger.debug({ messageKey }, 'already requested resend')
-			return
-		} else {
-			placeholderResendCache.set(messageKey?.id!, true)
-		}
-
-		await delay(5000)
-
-		if (!placeholderResendCache.get(messageKey?.id!)) {
-			logger.debug({ messageKey }, 'message received while resend requested')
-			return 'RESOLVED'
-		}
-
-		const pdoMessage = {
-			placeholderMessageResendRequest: [
-				{
-					messageKey
-				}
-			],
-			peerDataOperationRequestType: proto.Message.PeerDataOperationRequestType.PLACEHOLDER_MESSAGE_RESEND
-		}
-
-		setTimeout(() => {
-			if (placeholderResendCache.get(messageKey?.id!)) {
-				logger.debug({ messageKey }, 'PDO message without response after 15 seconds. Phone possibly offline')
-				placeholderResendCache.del(messageKey?.id!)
-			}
-		}, 15_000)
-
-		return sendPeerDataOperationMessage(pdoMessage)
-	}
-
 	const handleCall = async (node: BinaryNode) => {
 		let status
 		const { attrs } = node
@@ -1086,16 +1197,16 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		const callId = infoChild.attrs['call-id']
 		const from = infoChild.attrs.from || infoChild.attrs['call-creator']
 		status = getCallStatusFromNode(infoChild)
-		if(isLidUser(from) && infoChild.tag==='relaylatency')
-		{
-			const verify = callOfferCache.get(callId);
-			if(!verify)
-			{
-				status = 'offer';
-				callOfferCache.set(callId,true);
-			}
 
+		// Custom handling for LID users with relaylatency
+		if (isLidUser(from) && infoChild.tag === 'relaylatency') {
+			const verify = callOfferCache.get(callId)
+			if (!verify) {
+				status = 'offer'
+				callOfferCache.set(callId, true)
+			}
 		}
+
 		const call: WACallEvent = {
 			chatId: attrs.from,
 			from,
@@ -1114,7 +1225,6 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 
 		const existingCall = callOfferCache.get<WACallEvent>(call.id)
 
-		// use existing call info to populate this event
 		if (existingCall) {
 			call.isVideo = existingCall.isVideo
 			call.isGroup = existingCall.isGroup
@@ -1123,9 +1233,8 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		// delete data once call has ended
 		if (status === 'reject' || status === 'accept' || status === 'timeout' || status === 'terminate') {
 			callOfferCache.del(call.id)
-			if(isLidUser(from))
-			{
-			 callOfferCache.del(from)	
+			if (isLidUser(from)) {
+				callOfferCache.del(from)
 			}
 		}
 
@@ -1137,22 +1246,6 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 	const handleBadAck = async ({ attrs }: BinaryNode) => {
 		const key: WAMessageKey = { remoteJid: attrs.from, fromMe: true, id: attrs.id }
 
-		// WARNING: REFRAIN FROM ENABLING THIS FOR NOW. IT WILL CAUSE A LOOP
-		// // current hypothesis is that if pash is sent in the ack
-		// // it means -- the message hasn't reached all devices yet
-		// // we'll retry sending the message here
-		// if(attrs.phash) {
-		// 	logger.warn({ attrs }, 'received phash in ack, resending message...')
-		// 	const msg = await getMessage(key)
-		// 	if(msg) {
-		// 		await relayMessage(key.remoteJid!, msg, { messageId: key.id!, useUserDevicesCache: false })
-		// 	} else {
-		// 		logger.warn({ attrs }, 'could not send message again, as it was not found')
-		// 	}
-		// }
-
-		// error in acknowledgement,
-		// device could not display the message
 		if (attrs.error) {
 			logger.warn({ attrs }, 'received error in ack')
 			ev.emit('messages.update', [
@@ -1190,6 +1283,11 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		node: BinaryNode
 	}
 
+	/** Yields control to the event loop to prevent blocking */
+	const yieldToEventLoop = (): Promise<void> => {
+		return new Promise(resolve => setImmediate(resolve))
+	}
+
 	const makeOfflineNodeProcessor = () => {
 		const nodeProcessorMap: Map<MessageType, (node: BinaryNode) => Promise<void>> = new Map([
 			['message', handleMessage],
@@ -1199,6 +1297,9 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		])
 		const nodes: OfflineNode[] = []
 		let isProcessing = false
+
+		// Number of nodes to process before yielding to event loop
+		const BATCH_SIZE = 10
 
 		const enqueue = (type: MessageType, node: BinaryNode) => {
 			nodes.push({ type, node })
@@ -1210,6 +1311,8 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 			isProcessing = true
 
 			const promise = async () => {
+				let processedInBatch = 0
+
 				while (nodes.length && ws.isOpen) {
 					const { type, node } = nodes.shift()!
 
@@ -1221,6 +1324,13 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 					}
 
 					await nodeProcessor(node)
+					processedInBatch++
+
+					// Yield to event loop after processing a batch
+					if (processedInBatch >= BATCH_SIZE) {
+						processedInBatch = 0
+						await yieldToEventLoop()
+					}
 				}
 
 				isProcessing = false
@@ -1252,191 +1362,41 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		}
 	}
 
-	// Handles newsletter notifications
-	async function handleNewsletterNotification(node: BinaryNode) {
-		const from = node.attrs.from
-		const [child] = getAllBinaryNodeChildren(node)
-		const author = node.attrs.participant
+	// Handle presence updates (custom)
+	const handlePresenceUpdate = ({ tag, attrs, content }: BinaryNode) => {
+		let presence: PresenceData | undefined
+		const jid = attrs.from
+		const participant = attrs.participant || attrs.from
 
-		logger.warn({ from, child }, 'got newsletter notification')
+		if (shouldIgnoreJid(jid)) {
+			return
+		}
 
-		switch (child.tag) {
-			case 'reaction':
-				const reactionUpdate = {
-					id: from,
-					server_id: child.attrs.message_id,
-					reaction: {
-						code: getBinaryNodeChildString(child, 'reaction'),
-						count: 1
-					}
-				}
-				ev.emit('newsletter.reaction', reactionUpdate)
-				break
+		if (tag === 'presence') {
+			presence = {
+				lastKnownPresence: attrs.type === 'unavailable' ? 'unavailable' : 'available',
+				lastSeen: attrs.last && attrs.last !== 'deny' ? +attrs.last : undefined
+			}
+		} else if (Array.isArray(content)) {
+			const [firstChild] = content
+			let type = firstChild.tag as WAPresence
+			if (type === 'paused') {
+				type = 'available'
+			}
 
-			case 'view':
-				const viewUpdate = {
-					id: from,
-					server_id: child.attrs.message_id,
-					count: parseInt(child.content?.toString() || '0', 10)
-				}
-				ev.emit('newsletter.view', viewUpdate)
-				break
+			if (firstChild.attrs?.media === 'audio') {
+				type = 'recording'
+			}
 
-			case 'participant':
-				const participantUpdate = {
-					id: from,
-					author,
-					user: child.attrs.jid,
-					action: child.attrs.action,
-					new_role: child.attrs.role
-				}
-				ev.emit('newsletter-participants.update', participantUpdate)
-				break
+			presence = { lastKnownPresence: type }
+		} else {
+			logger.error({ tag, attrs, content }, 'recv invalid presence node')
+		}
 
-			case 'update':
-				const settingsNode = getBinaryNodeChild(child, 'settings')
-				if (settingsNode) {
-					const update: Record<string, any> = {}
-					const nameNode = getBinaryNodeChild(settingsNode, 'name')
-					if (nameNode?.content) update.name = nameNode.content.toString()
-
-					const descriptionNode = getBinaryNodeChild(settingsNode, 'description')
-					if (descriptionNode?.content) update.description = descriptionNode.content.toString()
-
-					ev.emit('newsletter-settings.update', {
-						id: from,
-						update
-					})
-				}
-
-				break
-
-			case 'message':
-				const plaintextNode = getBinaryNodeChild(child, 'plaintext')
-				if (plaintextNode?.content) {
-					try {
-						const contentBuf =
-							typeof plaintextNode.content === 'string'
-								? Buffer.from(plaintextNode.content, 'binary')
-								: Buffer.from(plaintextNode.content as Uint8Array)
-						const messageProto = proto.Message.decode(contentBuf)
-						const fullMessage = proto.WebMessageInfo.fromObject({
-							key: {
-								remoteJid: from,
-								id: child.attrs.message_id || child.attrs.server_id,
-								fromMe: false
-							},
-							message: messageProto,
-							messageTimestamp: +child.attrs.t
-						})
-						await upsertMessage(fullMessage, 'append')
-						logger.warn('Processed plaintext newsletter message')
-					} catch (error) {
-						logger.error({ error }, 'Failed to decode plaintext newsletter message')
-					}
-				}
-
-				break
-
-			default:
-				logger.warn({ node }, 'Unknown newsletter notification')
-				break
+		if (presence) {
+			ev.emit('presence.update', { id: jid, presences: { [participant]: presence } })
 		}
 	}
-
-	// Handles mex newsletter notifications
-	async function handleMexNewsletterNotification(node: BinaryNode) {
-		const mexNode = getBinaryNodeChild(node, 'mex')
-		if (!mexNode?.content) {
-			logger.warn({ node }, 'Invalid mex newsletter notification')
-			return
-		}
-
-		let data: any
-		try {
-			data = JSON.parse(mexNode.content.toString())
-		} catch (error) {
-			logger.error({ err: error, node }, 'Failed to parse mex newsletter notification')
-			return
-		}
-
-		const operation = data?.operation
-		const updates = data?.updates
-
-		if (!updates || !operation) {
-			logger.warn({ data }, 'Invalid mex newsletter notification content')
-			return
-		}
-
-		logger.warn({ operation, updates }, 'got mex newsletter notification')
-
-		switch (operation) {
-			case 'NotificationNewsletterUpdate':
-				for (const update of updates) {
-					if (update.jid && update.settings && Object.keys(update.settings).length > 0) {
-						ev.emit('newsletter-settings.update', {
-							id: update.jid,
-							update: update.settings
-						})
-					}
-				}
-
-				break
-
-			case 'NotificationNewsletterAdminPromote':
-				for (const update of updates) {
-					if (update.jid && update.user) {
-						ev.emit('newsletter-participants.update', {
-							id: update.jid,
-							author: node.attrs.from,
-							user: update.user,
-							new_role: 'ADMIN',
-							action: 'promote'
-						})
-					}
-				}
-
-				break
-
-			default:
-				logger.warn({ operation, data }, 'Unhandled mex newsletter notification')
-				break
-		}
-	}
-		const handlePresenceUpdate = ({ tag, attrs, content }: BinaryNode) => {
-			let presence: PresenceData | undefined
-			const jid = attrs.from
-			const participant = attrs.participant || attrs.from
-	
-			if (shouldIgnoreJid(jid)) {
-				return
-			}
-	
-			if (tag === 'presence') {
-				presence = {
-					lastKnownPresence: attrs.type === 'unavailable' ? 'unavailable' : 'available',
-					lastSeen: attrs.last && attrs.last !== 'deny' ? +attrs.last : undefined
-				}
-			} else if (Array.isArray(content)) {
-				const [firstChild] = content
-				let type = firstChild.tag as WAPresence
-				if (type === 'paused') {
-					type = 'available'
-				}
-	
-				if (firstChild.attrs?.media === 'audio') {
-					type = 'recording'
-				}
-	
-				presence = { lastKnownPresence: type }
-			} else {
-				logger.error({ tag, attrs, content }, 'recv invalid presence node')
-			}
-	
-			if (presence) {
-				ev.emit('presence.update', { id: jid, presences: { [participant]: presence } })
-			}
-		}
 
 	// recv a message
 	ws.on('CB:message', (node: BinaryNode) => {
@@ -1454,9 +1414,11 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 	ws.on('CB:notification', async (node: BinaryNode) => {
 		processNode('notification', node, 'handling notification', handleNotification)
 	})
+
 	ws.on('CB:ack,class:message', (node: BinaryNode) => {
 		handleBadAck(node).catch(error => onUnexpectedError(error, 'handling bad ack'))
 	})
+
 	ws.on('CB:presence', handlePresenceUpdate)
 	ws.on('CB:chatstate', handlePresenceUpdate)
 

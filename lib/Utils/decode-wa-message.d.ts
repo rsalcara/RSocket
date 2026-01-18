@@ -20,6 +20,15 @@ export declare const NACK_REASONS: {
     DBOperationFailed: number;
 };
 /**
+ * Extract addressing context from a message stanza
+ * Determines if message is LID or PN addressed and extracts alternate identifiers
+ */
+export declare const extractAddressingContext: (stanza: BinaryNode) => {
+    addressingMode: string;
+    senderAlt: string;
+    recipientAlt: string;
+};
+/**
  * Decode the received node as a message.
  * @note this will only parse the message, not decrypt it
  */

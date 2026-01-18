@@ -49,7 +49,9 @@ export const areJidsSameUser = (jid1: string | undefined, jid2: string | undefin
 export const isJidMetaIa = (jid: string | undefined) => jid?.endsWith('@bot')
 /** is the jid a user */
 export const isJidUser = (jid: string | undefined) => jid?.endsWith('@s.whatsapp.net')
-/** is the jid a group */
+/** is the jid a PN user (alias for isJidUser) */
+export const isPnUser = (jid: string | undefined) => jid?.endsWith('@s.whatsapp.net')
+/** is the jid a LID */
 export const isLidUser = (jid: string | undefined) => jid?.endsWith('@lid')
 /** is the jid a broadcast */
 export const isJidBroadcast = (jid: string | undefined) => jid?.endsWith('@broadcast')

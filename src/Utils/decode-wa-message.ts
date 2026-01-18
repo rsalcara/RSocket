@@ -11,6 +11,7 @@ import {
 	isJidStatusBroadcast,
 	isJidUser,
 	isLidUser,
+	isPnUser,
 	jidDecode,
 	jidNormalizedUser
 } from '../WABinary'
@@ -45,6 +46,34 @@ type MessageType =
 	| 'direct_peer_status'
 	| 'other_status'
 	| 'newsletter'
+
+/**
+ * Extract addressing context from a message stanza
+ * Determines if message is LID or PN addressed and extracts alternate identifiers
+ */
+export const extractAddressingContext = (stanza: BinaryNode) => {
+	let senderAlt: string | undefined
+	let recipientAlt: string | undefined
+
+	const sender = stanza.attrs.participant || stanza.attrs.from
+	const addressingMode = stanza.attrs.addressing_mode || (sender?.endsWith('lid') ? 'lid' : 'pn')
+
+	if (addressingMode === 'lid') {
+		// Message is LID-addressed: sender is LID, extract corresponding PN
+		senderAlt = stanza.attrs.participant_pn || stanza.attrs.sender_pn || stanza.attrs.peer_recipient_pn
+		recipientAlt = stanza.attrs.recipient_pn
+	} else {
+		// Message is PN-addressed: sender is PN, extract corresponding LID
+		senderAlt = stanza.attrs.participant_lid || stanza.attrs.sender_lid || stanza.attrs.peer_recipient_lid
+		recipientAlt = stanza.attrs.recipient_lid
+	}
+
+	return {
+		addressingMode,
+		senderAlt,
+		recipientAlt
+	}
+}
 
 /**
  * Decode the received node as a message.
