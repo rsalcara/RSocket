@@ -1,7 +1,7 @@
 import NodeCache from '@cacheable/node-cache'
 import { Boom } from '@hapi/boom'
 import { randomBytes } from 'crypto'
-import Long = require('long')
+import Long from 'long'
 import { proto } from '../../WAProto'
 import { DEFAULT_CACHE_TTLS, DEFAULT_CACHE_MAX_KEYS, KEY_BUNDLE_TYPE, MIN_PREKEY_COUNT } from '../Defaults'
 import {
@@ -99,7 +99,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 
 	logger.warn(
 		{
-				component: 'CircuitBreaker',
+			component: 'CircuitBreaker',
 			failureThreshold: 5,
 			failureWindow: '60s',
 			openTimeout: '30s',
@@ -260,7 +260,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 				const { update, preKeys } = await getNextPreKeys(authState, 1)
 
 				const [keyId] = Object.keys(preKeys)
-				const key = preKeys[+keyId]
+				const preKey = preKeys[+keyId]
 
 				const content = receipt.content! as BinaryNode[]
 				content.push({
@@ -269,7 +269,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 					content: [
 						{ tag: 'type', attrs: {}, content: Buffer.from(KEY_BUNDLE_TYPE) },
 						{ tag: 'identity', attrs: {}, content: identityKey.public },
-						xmppPreKey(key, +keyId),
+						xmppPreKey(preKey, +keyId),
 						xmppSignedPreKey(signedPreKey),
 						{ tag: 'device-identity', attrs: {}, content: deviceIdentity }
 					]
@@ -483,14 +483,14 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 				])
 
 				if (isJidGroup(from)) {
-					const node = setPicture || delPicture
+					const pictureNode = setPicture || delPicture
 					result.messageStubType = WAMessageStubType.GROUP_CHANGE_ICON
 
 					if (setPicture) {
 						result.messageStubParameters = [setPicture.attrs.id]
 					}
 
-					result.participant = node?.attrs.author
+					result.participant = pictureNode?.attrs.author
 					result.key = {
 						...(result.key || {}),
 						participant: setPicture?.attrs.author
@@ -649,11 +649,11 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		for (const [i, msg] of msgs.entries()) {
 			if (msg) {
 				updateSendMessageAgainCount(ids[i], participant)
-				const msgRelayOpts: MessageRelayOptions = { messageId: ids[i], isretry:true }				
+				const msgRelayOpts: MessageRelayOptions = { messageId: ids[i], isretry:true }
 					msgRelayOpts.participant = {
 						jid: participant,
-						count: +retryNode.attrs.count					
-					
+						count: +retryNode.attrs.count
+
 				}
 
 				await relayMessage(key.remoteJid!, msg, msgRelayOpts,)
@@ -1125,7 +1125,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 			callOfferCache.del(call.id)
 			if(isLidUser(from))
 			{
-			 callOfferCache.del(from)	
+			 callOfferCache.del(from)
 			}
 		}
 
@@ -1190,6 +1190,11 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		node: BinaryNode
 	}
 
+	/** Yields control to the event loop to prevent blocking */
+	const yieldToEventLoop = (): Promise<void> => {
+		return new Promise(resolve => setImmediate(resolve))
+	}
+
 	const makeOfflineNodeProcessor = () => {
 		const nodeProcessorMap: Map<MessageType, (node: BinaryNode) => Promise<void>> = new Map([
 			['message', handleMessage],
@@ -1199,6 +1204,9 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		])
 		const nodes: OfflineNode[] = []
 		let isProcessing = false
+
+		// Number of nodes to process before yielding to event loop
+		const BATCH_SIZE = 10
 
 		const enqueue = (type: MessageType, node: BinaryNode) => {
 			nodes.push({ type, node })
@@ -1210,6 +1218,8 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 			isProcessing = true
 
 			const promise = async () => {
+				let processedInBatch = 0
+
 				while (nodes.length && ws.isOpen) {
 					const { type, node } = nodes.shift()!
 
@@ -1221,6 +1231,14 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 					}
 
 					await nodeProcessor(node)
+					processedInBatch++
+
+					// Yield to event loop after processing a batch
+					// This prevents blocking the event loop for too long when there are many offline nodes
+					if (processedInBatch >= BATCH_SIZE) {
+						processedInBatch = 0
+						await yieldToEventLoop()
+					}
 				}
 
 				isProcessing = false
@@ -1407,11 +1425,11 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 			let presence: PresenceData | undefined
 			const jid = attrs.from
 			const participant = attrs.participant || attrs.from
-	
+
 			if (shouldIgnoreJid(jid)) {
 				return
 			}
-	
+
 			if (tag === 'presence') {
 				presence = {
 					lastKnownPresence: attrs.type === 'unavailable' ? 'unavailable' : 'available',
@@ -1423,16 +1441,16 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 				if (type === 'paused') {
 					type = 'available'
 				}
-	
+
 				if (firstChild.attrs?.media === 'audio') {
 					type = 'recording'
 				}
-	
+
 				presence = { lastKnownPresence: type }
 			} else {
 				logger.error({ tag, attrs, content }, 'recv invalid presence node')
 			}
-	
+
 			if (presence) {
 				ev.emit('presence.update', { id: jid, presences: { [participant]: presence } })
 			}
