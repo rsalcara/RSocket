@@ -45,6 +45,10 @@ export declare class BaileysPrometheusMetrics {
     activeConnections?: Gauge<string>;
     memoryUsageBytes?: Gauge<string>;
     uptimeSeconds?: Gauge<string>;
+    preKeyUploadsTotal?: Counter<string>;
+    preKeyUploadCount?: Counter<string>;
+    lidMigrationTotal?: Counter<string>;
+    offlineNotificationsTotal?: Counter<string>;
     constructor(logger: ILogger);
     /**
      * Load configuration from environment variables
@@ -164,6 +168,18 @@ export declare class BaileysPrometheusMetrics {
      * Update active connections count
      */
     updateActiveConnections(count: number): void;
+    /**
+     * Record pre-key upload operation
+     */
+    recordPreKeyUpload(count: number): void;
+    /**
+     * Record LID session migration
+     */
+    recordLIDMigration(status: 'success' | 'failure'): void;
+    /**
+     * Record offline notifications processed
+     */
+    recordOfflineNotifications(count: number): void;
     /**
      * Check if Prometheus is enabled
      */

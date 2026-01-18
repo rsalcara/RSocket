@@ -6,7 +6,10 @@ import { ILogger } from '../Utils/logger'
 import { AuthenticationState, SignalAuthState, TransactionCapabilityOptions } from './Auth'
 import { GroupMetadata } from './GroupMetadata'
 import { MediaConnInfo } from './Message'
-import { SignalRepository } from './Signal'
+import { LIDMapping, SignalRepository } from './Signal'
+
+/** Function type for fetching LID-PN mappings via USync */
+export type PnFromLIDUSyncFn = (jids: string[]) => Promise<LIDMapping[] | undefined>
 
 export type WAVersion = [number, number, number]
 export type WABrowserDescription = [string, string, string]
@@ -169,5 +172,9 @@ export type SocketConfig = {
 	/** cached group metadata, use to prevent redundant requests to WA & speed up msg sending */
 	cachedGroupMetadata: (jid: string) => Promise<GroupMetadata | undefined>
 
-	makeSignalRepository: (auth: SignalAuthState) => SignalRepository
+	makeSignalRepository: (
+		auth: SignalAuthState,
+		logger?: ILogger,
+		pnFromLIDUSync?: PnFromLIDUSyncFn
+	) => SignalRepository
 }

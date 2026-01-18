@@ -8,9 +8,12 @@ import {
 	DEF_TAG_PREFIX,
 	INITIAL_PREKEY_COUNT,
 	MIN_PREKEY_COUNT,
-	NOISE_WA_HEADER
+	MIN_UPLOAD_INTERVAL,
+	NOISE_WA_HEADER,
+	UPLOAD_TIMEOUT
 } from '../Defaults'
-import { DisconnectReason, SocketConfig } from '../Types'
+import type { LIDMapping, SocketConfig } from '../Types'
+import { DisconnectReason } from '../Types'
 import {
 	addTransactionCapability,
 	aesEncryptCTR,
@@ -34,19 +37,26 @@ import {
 	makeEventBuffer,
 	makeNoiseHandler,
 	promiseTimeout,
-	validateRetryConfig
+	signedKeyPair,
+	validateRetryConfig,
+	xmppSignedPreKey
 } from '../Utils'
 import { getPrometheus } from '../Utils/prometheus-metrics'
 import {
 	assertNodeErrorFree,
-	BinaryNode,
+	type BinaryNode,
 	binaryNodeToString,
 	encodeBinaryNode,
+	getAllBinaryNodeChildren,
 	getBinaryNodeChild,
 	getBinaryNodeChildren,
+	isLidUser,
+	jidDecode,
 	jidEncode,
 	S_WHATSAPP_NET
 } from '../WABinary'
+import { BinaryInfo } from '../WAM/BinaryInfo'
+import { USyncQuery, USyncUser } from '../WAUSync'
 import { WebSocketClient } from './Client'
 
 /**
@@ -73,6 +83,12 @@ export const makeSocket = (config: SocketConfig) => {
 		qrTimeout,
 		makeSignalRepository
 	} = config
+
+	// Public WAM buffer for metrics collection
+	const publicWAMBuffer = new BinaryInfo()
+
+	const uqTagId = generateMdTagPrefix()
+	const generateMessageTag = () => `${uqTagId}${epoch++}`
 
 	if (printQRInTerminal) {
 		console.warn(
@@ -106,14 +122,6 @@ export const makeSocket = (config: SocketConfig) => {
 		url.searchParams.append('ED', authState.creds.routingInfo.toString('base64url'))
 	}
 
-	const ws = new WebSocketClient(url, config)
-
-	ws.connect()
-
-	// Initialize Prometheus metrics if enabled
-	initPrometheus(logger)
-
-	const ev = makeEventBuffer(logger)
 	/** ephemeral key pair used to encrypt/decrypt communication. Unique for each connection */
 	const ephemeralKeyPair = Curve.generateKeyPair()
 	/** WA noise protocol wrapper */
@@ -124,19 +132,52 @@ export const makeSocket = (config: SocketConfig) => {
 		routingInfo: authState?.creds?.routingInfo
 	})
 
+	const ws = new WebSocketClient(url, config)
+
+	ws.connect()
+
+	// Initialize Prometheus metrics if enabled
+	initPrometheus(logger)
+
+	const ev = makeEventBuffer(logger)
+
 	const { creds } = authState
 	// add transaction capability
 	const keys = addTransactionCapability(authState.keys, logger, transactionOpts)
-	const signalRepository = makeSignalRepository({ creds, keys })
+
+	// Function to fetch LID-PN mappings via USync (needed for signalRepository)
+	const pnFromLIDUSync = async (jids: string[]): Promise<LIDMapping[] | undefined> => {
+		const usyncQuery = new USyncQuery().withLIDProtocol().withContext('background')
+
+		for (const jid of jids) {
+			if (isLidUser(jid)) {
+				logger?.warn('LID user found in LID fetch call')
+				continue
+			} else {
+				usyncQuery.withUser(new USyncUser().withId(jid))
+			}
+		}
+
+		if (usyncQuery.users.length === 0) {
+			return [] // return early without forcing an empty query
+		}
+
+		const results = await executeUSyncQuery(usyncQuery)
+
+		if (results) {
+			return results.list.filter(a => !!a.lid).map(({ lid, id }) => ({ pn: id, lid: lid as string }))
+		}
+
+		return []
+	}
+
+	const signalRepository = makeSignalRepository({ creds, keys }, logger, pnFromLIDUSync)
 
 	let lastDateRecv: Date
 	let epoch = 1
 	let keepAliveReq: NodeJS.Timeout
 	let qrTimer: NodeJS.Timeout
 	let closed = false
-
-	const uqTagId = generateMdTagPrefix()
-	const generateMessageTag = () => `${uqTagId}${epoch++}`
 
 	const sendPromise = promisify(ws.send)
 	/** send a raw buffer */
@@ -207,25 +248,44 @@ export const makeSocket = (config: SocketConfig) => {
 	 * @param timeoutMs timeout after which the promise will reject
 	 */
 	const waitForMessage = async <T>(msgId: string, timeoutMs = defaultQueryTimeoutMs) => {
-		let onRecv: (json) => void
-		let onErr: (err) => void
+		let onRecv: ((data: T) => void) | undefined
+		let onErr: ((err: Error) => void) | undefined
 		try {
 			const result = await promiseTimeout<T>(timeoutMs, (resolve, reject) => {
-				onRecv = resolve
+				onRecv = data => {
+					resolve(data)
+				}
+
 				onErr = err => {
-					reject(err || new Boom('Connection Closed', { statusCode: DisconnectReason.connectionClosed }))
+					reject(
+						err ||
+							new Boom('Connection Closed', {
+								statusCode: DisconnectReason.connectionClosed
+							})
+					)
 				}
 
 				ws.on(`TAG:${msgId}`, onRecv)
-				ws.on('close', onErr) // if the socket closes, you'll never receive the message
-				ws.off('error', onErr)
-			})
+				ws.on('close', onErr)
+				ws.on('error', onErr)
 
-			return result as any
+				return () => reject(new Boom('Query Cancelled'))
+			})
+			return result
+		} catch (error) {
+			// Catch timeout and return undefined instead of throwing
+			if (error instanceof Boom && error.output?.statusCode === DisconnectReason.timedOut) {
+				logger?.warn?.({ msgId }, 'timed out waiting for message')
+				return undefined
+			}
+
+			throw error
 		} finally {
-			ws.off(`TAG:${msgId}`, onRecv!)
-			ws.off('close', onErr!) // if the socket closes, you'll never receive the message
-			ws.off('error', onErr!)
+			if (onRecv) ws.off(`TAG:${msgId}`, onRecv)
+			if (onErr) {
+				ws.off('close', onErr)
+				ws.off('error', onErr)
+			}
 		}
 	}
 
@@ -237,13 +297,148 @@ export const makeSocket = (config: SocketConfig) => {
 
 		const msgId = node.attrs.id
 
-		const [result] = await Promise.all([waitForMessage(msgId, timeoutMs), sendNode(node)])
+		const result = await promiseTimeout<any>(timeoutMs, async (resolve, reject) => {
+			const result = waitForMessage(msgId, timeoutMs).catch(reject)
+			sendNode(node)
+				.then(async () => resolve(await result))
+				.catch(reject)
+		})
 
-		if ('tag' in result) {
+		if (result && 'tag' in result) {
 			assertNodeErrorFree(result)
 		}
 
 		return result
+	}
+
+	// Validate current key-bundle on server; on failure, trigger pre-key upload and rethrow
+	const digestKeyBundle = async (): Promise<void> => {
+		const res = await query({
+			tag: 'iq',
+			attrs: { to: S_WHATSAPP_NET, type: 'get', xmlns: 'encrypt' },
+			content: [{ tag: 'digest', attrs: {} }]
+		})
+		const digestNode = getBinaryNodeChild(res, 'digest')
+		if (!digestNode) {
+			await uploadPreKeys()
+			throw new Error('encrypt/get digest returned no digest node')
+		}
+	}
+
+	// Rotate our signed pre-key on server; on failure, run digest as fallback and rethrow
+	const rotateSignedPreKey = async (): Promise<void> => {
+		const newId = (creds.signedPreKey.keyId || 0) + 1
+		const skey = await signedKeyPair(creds.signedIdentityKey, newId)
+		await query({
+			tag: 'iq',
+			attrs: { to: S_WHATSAPP_NET, type: 'set', xmlns: 'encrypt' },
+			content: [
+				{
+					tag: 'rotate',
+					attrs: {},
+					content: [xmppSignedPreKey(skey)]
+				}
+			]
+		})
+		// Persist new signed pre-key in creds
+		ev.emit('creds.update', { signedPreKey: skey })
+
+		// Prometheus: Track signed pre-key rotation
+		try {
+			const prometheus = getPrometheus()
+			if (prometheus?.isEnabled()) {
+				logPreKeys('rotated', 1)
+			}
+		} catch (err) {
+			logger.trace({ err }, 'Failed to record signed pre-key rotation metrics')
+		}
+	}
+
+	const executeUSyncQuery = async (usyncQuery: USyncQuery) => {
+		if (usyncQuery.protocols.length === 0) {
+			throw new Boom('USyncQuery must have at least one protocol')
+		}
+
+		// todo: validate users, throw WARNING on no valid users
+		// variable below has only validated users
+		const validUsers = usyncQuery.users
+
+		const userNodes = validUsers.map(user => {
+			return {
+				tag: 'user',
+				attrs: {
+					jid: !user.phone ? user.id : undefined
+				},
+				content: usyncQuery.protocols.map(a => a.getUserElement(user)).filter(a => a !== null)
+			} as BinaryNode
+		})
+
+		const listNode: BinaryNode = {
+			tag: 'list',
+			attrs: {},
+			content: userNodes
+		}
+
+		const queryNode: BinaryNode = {
+			tag: 'query',
+			attrs: {},
+			content: usyncQuery.protocols.map(a => a.getQueryElement())
+		}
+		const iq = {
+			tag: 'iq',
+			attrs: {
+				to: S_WHATSAPP_NET,
+				type: 'get',
+				xmlns: 'usync'
+			},
+			content: [
+				{
+					tag: 'usync',
+					attrs: {
+						context: usyncQuery.context,
+						mode: usyncQuery.mode,
+						sid: generateMessageTag(),
+						last: 'true',
+						index: '0'
+					},
+					content: [queryNode, listNode]
+				}
+			]
+		}
+
+		const result = await query(iq)
+
+		return usyncQuery.parseUSyncQueryResult(result)
+	}
+
+	const onWhatsApp = async (...phoneNumber: string[]) => {
+		let usyncQuery = new USyncQuery()
+
+		let contactEnabled = false
+		for (const jid of phoneNumber) {
+			if (isLidUser(jid)) {
+				logger?.warn('LIDs are not supported with onWhatsApp')
+				continue
+			} else {
+				if (!contactEnabled) {
+					contactEnabled = true
+					usyncQuery = usyncQuery.withContactProtocol()
+				}
+
+				const phone = `+${jid.replace('+', '').split('@')[0]?.split(':')[0]}`
+				usyncQuery.withUser(new USyncUser().withPhone(phone))
+			}
+		}
+
+		if (usyncQuery.users.length === 0) {
+			return [] // return early without forcing an empty query
+		}
+
+		const results = await executeUSyncQuery(usyncQuery)
+
+		if (results) {
+			return results.list.filter(a => !!a.contact).map(({ contact, id }) => ({ jid: id, exists: contact as boolean }))
+		}
 	}
 
 	/** connection handshake */
@@ -282,7 +477,7 @@ export const makeSocket = (config: SocketConfig) => {
 				}
 			}).finish()
 		)
-		noise.finishInit()
+		await noise.finishInit()
 		startKeepAliveRequest()
 	}
 
@@ -297,35 +492,156 @@ export const makeSocket = (config: SocketConfig) => {
 			},
 			content: [{ tag: 'count', attrs: {} }]
 		})
-		const countChild = getBinaryNodeChild(result, 'count')
-		return +countChild!.attrs.value
+		const countChild = getBinaryNodeChild(result, 'count')!
+		return +countChild.attrs.value!
 	}
+
+	// Pre-key upload state management
+	let uploadPreKeysPromise: Promise<void> | null = null
+	let lastUploadTime = 0
 
 	/** generates and uploads a set of pre-keys to the server */
-	const uploadPreKeys = async (count = INITIAL_PREKEY_COUNT) => {
-		await keys.transaction(async () => {
-			logger.info({ count }, 'uploading pre-keys')
-			const { update, node } = await getNextPreKeysNode({ creds, keys }, count)
+	const uploadPreKeys = async (count = MIN_PREKEY_COUNT, retryCount = 0) => {
+		// Check minimum interval (except for retries)
+		if (retryCount === 0) {
+			const timeSinceLastUpload = Date.now() - lastUploadTime
+			if (timeSinceLastUpload < MIN_UPLOAD_INTERVAL) {
+				logger.debug(`Skipping upload, only ${timeSinceLastUpload}ms since last upload`)
+				return
+			}
+		}
 
-			await query(node)
-			ev.emit('creds.update', update)
+		// Prevent multiple concurrent uploads
+		if (uploadPreKeysPromise) {
+			logger.debug('Pre-key upload already in progress, waiting for completion')
+			await uploadPreKeysPromise
+		}
 
-			logger.info({ count }, 'uploaded pre-keys')
-			logPreKeys('uploaded', count)
-		})
-	}
+		const uploadLogic = async () => {
+			logger.info({ count, retryCount }, 'uploading pre-keys')
 
-	const uploadPreKeysToServerIfRequired = async () => {
-		const preKeyCount = await getAvailablePreKeysOnServer()
-		logger.info(`${preKeyCount} pre-keys found on server`)
-		if (preKeyCount <= MIN_PREKEY_COUNT) {
-			logPreKeys('low', preKeyCount)
-			await uploadPreKeys()
+			// Generate and save pre-keys atomically (prevents ID collisions on retry)
+			const node = await keys.transaction(async () => {
+				logger.debug({ requestedCount: count }, 'generating pre-keys with requested count')
+				const { update, node } = await getNextPreKeysNode({ creds, keys }, count)
+				// Update credentials immediately to prevent duplicate IDs on retry
+				ev.emit('creds.update', update)
+				return node // Only return node since update is already used
+			})
+
+			// Upload to server (outside transaction, can fail without affecting local keys)
+			try {
+				await query(node)
+				logger.info({ count }, 'uploaded pre-keys successfully')
+				lastUploadTime = Date.now()
+				logPreKeys('uploaded', count)
+
+				// Prometheus: Track successful pre-key upload
+				try {
+					const prometheus = getPrometheus()
+					if (prometheus?.isEnabled()) {
+						prometheus.recordPreKeyUpload(count)
+					}
+				} catch (err) {
+					logger.trace({ err }, 'Failed to record pre-key upload metrics')
+				}
+			} catch (uploadError) {
+				logger.error({ uploadError: (uploadError as Error).toString(), count }, 'Failed to upload pre-keys to server')
+
+				// Prometheus: Track pre-key upload failure
+				try {
+					const prometheus = getPrometheus()
+					if (prometheus?.isEnabled()) {
+						prometheus.recordConnectionError('prekey_upload_failed')
+					}
+				} catch (err) {
+					logger.trace({ err }, 'Failed to record pre-key upload error metrics')
+				}
+
+				// Exponential backoff retry (max 3 retries)
+				if (retryCount < 3) {
+					const backoffDelay = Math.min(1000 * Math.pow(2, retryCount), 10000)
+					logger.info(`Retrying pre-key upload in ${backoffDelay}ms`)
+					await new Promise(resolve => setTimeout(resolve, backoffDelay))
+					return uploadPreKeys(count, retryCount + 1)
+				}
+
+				throw uploadError
+			}
+		}
+
+		// Add timeout protection
+		uploadPreKeysPromise = Promise.race([
+			uploadLogic(),
+			new Promise<void>((_, reject) =>
+				setTimeout(() => reject(new Boom('Pre-key upload timeout', { statusCode: 408 })), UPLOAD_TIMEOUT)
+			)
+		])
+
+		try {
+			await uploadPreKeysPromise
+		} finally {
+			uploadPreKeysPromise = null
 		}
 	}
 
-	const onMessageReceived = (data: Buffer) => {
-		noise.decodeFrame(data, frame => {
+	const verifyCurrentPreKeyExists = async () => {
+		const currentPreKeyId = creds.nextPreKeyId - 1
+		if (currentPreKeyId <= 0) {
+			return { exists: false, currentPreKeyId: 0 }
+		}
+
+		const preKeys = await keys.get('pre-key', [currentPreKeyId.toString()])
+		const exists = !!preKeys[currentPreKeyId.toString()]
+
+		return { exists, currentPreKeyId }
+	}
+
+	const uploadPreKeysToServerIfRequired = async () => {
+		try {
+			let count = 0
+			const preKeyCount = await getAvailablePreKeysOnServer()
+			if (preKeyCount === 0) count = INITIAL_PREKEY_COUNT
+			else count = MIN_PREKEY_COUNT
+			const { exists: currentPreKeyExists, currentPreKeyId } = await verifyCurrentPreKeyExists()
+
+			logger.info(`${preKeyCount} pre-keys found on server`)
+			logger.info(`Current prekey ID: ${currentPreKeyId}, exists in storage: ${currentPreKeyExists}`)
+
+			const lowServerCount = preKeyCount <= count
+			const missingCurrentPreKey = !currentPreKeyExists && currentPreKeyId > 0
+
+			const shouldUpload = lowServerCount || missingCurrentPreKey
+
+			if (shouldUpload) {
+				const reasons: string[] = []
+				if (lowServerCount) reasons.push(`server count low (${preKeyCount})`)
+				if (missingCurrentPreKey) reasons.push(`current prekey ${currentPreKeyId} missing from storage`)
+
+				logger.info(`Uploading PreKeys due to: ${reasons.join(', ')}`)
+				logPreKeys('low', preKeyCount)
+				await uploadPreKeys(count)
+			} else {
+				logger.info(`PreKey validation passed - Server: ${preKeyCount}, Current prekey ${currentPreKeyId} exists`)
+			}
+		} catch (error) {
+			logger.error({ error }, 'Failed to check/upload pre-keys during initialization')
+
+			// Prometheus: Track pre-key check failure
+			try {
+				const prometheus = getPrometheus()
+				if (prometheus?.isEnabled()) {
+					prometheus.recordConnectionError('prekey_check_failed')
+				}
+			} catch (err) {
+				logger.trace({ err }, 'Failed to record pre-key check error metrics')
+			}
+			// Don't throw - allow connection to continue even if pre-key check fails
+		}
+	}
+
+	const onMessageReceived = async (data: Buffer) => {
+		await noise.decodeFrame(data, frame => {
 			// reset ping timeout
 			lastDateRecv = new Date()
 
@@ -363,7 +679,7 @@ export const makeSocket = (config: SocketConfig) => {
 		})
 	}
 
-	const end = (error: Error | undefined) => {
+	const end = async (error: Error | undefined) => {
 		if (closed) {
 			logger.trace({ trace: error?.stack }, 'connection already closed')
 			return
@@ -381,7 +697,7 @@ export const makeSocket = (config: SocketConfig) => {
 
 		if (!ws.isClosed && !ws.isClosing) {
 			try {
-				ws.close()
+				await ws.close()
 			} catch {}
 		}
 
@@ -413,6 +729,8 @@ export const makeSocket = (config: SocketConfig) => {
 		// This stops auto-flush timers, cleans up all listeners, and prevents orphaned buffers
 		ev.destroy()
 		logger.debug('event buffer destroyed after connection close')
+
+		ev.removeAllListeners('connection.update')
 	}
 
 	const waitForSocketOpen = async (timeoutMs = connectTimeoutMs) => {
@@ -424,8 +742,8 @@ export const makeSocket = (config: SocketConfig) => {
 			throw new Boom('Connection Closed', { statusCode: DisconnectReason.connectionClosed })
 		}
 
-		let onOpen: () => void
-		let onClose: (err: Error) => void
+		let onOpen: (() => void) | undefined
+		let onClose: ((err: Error) => void) | undefined
 		const startTime = Date.now()
 
 		try {
@@ -449,7 +767,6 @@ export const makeSocket = (config: SocketConfig) => {
 						isOpen: ws.isOpen,
 						isClosed: ws.isClosed,
 						isClosing: ws.isClosing,
-						readyState: ws.readyState,
 						url: ws.url
 					},
 					'socket open timeout: connection stuck in limbo state'
@@ -469,9 +786,11 @@ export const makeSocket = (config: SocketConfig) => {
 			throw error
 		} finally {
 			// Always cleanup listeners to prevent memory leaks
-			ws.off('open', onOpen)
-			ws.off('close', onClose)
-			ws.off('error', onClose)
+			if (onOpen) ws.off('open', onOpen)
+			if (onClose) {
+				ws.off('close', onClose)
+				ws.off('error', onClose)
+			}
 		}
 	}
 
@@ -487,7 +806,7 @@ export const makeSocket = (config: SocketConfig) => {
 				it could be that the network is down
 			*/
 			if (diff > keepAliveIntervalMs + 5000) {
-				end(new Boom('Connection was lost', { statusCode: DisconnectReason.connectionLost }))
+				void end(new Boom('Connection was lost', { statusCode: DisconnectReason.connectionLost }))
 			} else if (ws.isOpen) {
 				// if its all good, send a keep alive request
 				query({
@@ -542,7 +861,7 @@ export const makeSocket = (config: SocketConfig) => {
 			})
 		}
 
-		end(new Boom(msg || 'Intentional Logout', { statusCode: DisconnectReason.loggedOut }))
+		void end(new Boom(msg || 'Intentional Logout', { statusCode: DisconnectReason.loggedOut }))
 	}
 
 	const requestPairingCode = async (phoneNumber: string, customPairingCode?: string): Promise<string> => {
@@ -628,7 +947,7 @@ export const makeSocket = (config: SocketConfig) => {
 			content: [
 				{
 					tag: 'add',
-					attrs: {},
+					attrs: { t: Math.round(Date.now() / 1000) + '' },
 					content: wamBuffer
 				}
 			]
@@ -642,14 +961,15 @@ export const makeSocket = (config: SocketConfig) => {
 			await validateConnection()
 		} catch (err) {
 			logger.error({ err }, 'error in validating connection')
-			end(err)
+			void end(err)
 		}
 	})
 	ws.on('error', mapWebSocketError(end))
-	ws.on('close', () => end(new Boom('Connection Terminated', { statusCode: DisconnectReason.connectionClosed })))
+	ws.on('close', () => void end(new Boom('Connection Terminated', { statusCode: DisconnectReason.connectionClosed })))
 	// the server terminated the connection
-	ws.on('CB:xmlstreamend', () =>
-		end(new Boom('Connection Terminated by Server', { statusCode: DisconnectReason.connectionClosed }))
+	ws.on(
+		'CB:xmlstreamend',
+		() => void end(new Boom('Connection Terminated by Server', { statusCode: DisconnectReason.connectionClosed }))
 	)
 	// QR gen
 	ws.on('CB:iq,type:set,pair-device', async (stanza: BinaryNode) => {
@@ -658,7 +978,7 @@ export const makeSocket = (config: SocketConfig) => {
 			attrs: {
 				to: S_WHATSAPP_NET,
 				type: 'result',
-				id: stanza.attrs.id
+				id: stanza.attrs.id!
 			}
 		}
 		await sendNode(iq)
@@ -677,7 +997,7 @@ export const makeSocket = (config: SocketConfig) => {
 
 			const refNode = refNodes.shift()
 			if (!refNode) {
-				end(new Boom('QR refs attempts ended', { statusCode: DisconnectReason.timedOut }))
+				void end(new Boom('QR refs attempts ended', { statusCode: DisconnectReason.timedOut }))
 				return
 			}
 
@@ -712,13 +1032,24 @@ export const makeSocket = (config: SocketConfig) => {
 			await sendNode(reply)
 		} catch (error) {
 			logger.info({ trace: error.stack }, 'error in pairing')
-			end(error)
+			void end(error)
 		}
 	})
 	// login complete
 	ws.on('CB:success', async (node: BinaryNode) => {
-		await uploadPreKeysToServerIfRequired()
-		await sendPassiveIq('active')
+		try {
+			await uploadPreKeysToServerIfRequired()
+			await sendPassiveIq('active')
+
+			// After successful login, validate our key-bundle against server
+			try {
+				await digestKeyBundle()
+			} catch (e) {
+				logger.warn({ e }, 'failed to run digest after login')
+			}
+		} catch (err) {
+			logger.warn({ err }, 'failed to send initial passive iq')
+		}
 
 		logger.info('opened connection to WA')
 		logAuth('success')
@@ -743,10 +1074,59 @@ export const makeSocket = (config: SocketConfig) => {
 			// Never let Prometheus errors break connection
 			logger.trace({ err }, 'Failed to record connection metrics')
 		}
+
+		// Handle LID session migration for own user
+		if (node.attrs.lid && authState.creds.me?.id) {
+			const myLID = node.attrs.lid
+			process.nextTick(async () => {
+				try {
+					const myPN = authState.creds.me!.id
+
+					// Store our own LID-PN mapping
+					await signalRepository.lidMapping.storeLIDPNMappings([{ lid: myLID, pn: myPN }])
+
+					// Create device list for our own user (needed for bulk migration)
+					const { user, device } = jidDecode(myPN)!
+					await authState.keys.set({
+						'device-list': {
+							[user]: [device?.toString() || '0']
+						}
+					})
+
+					// migrate our own session
+					await signalRepository.migrateSession(myPN, myLID)
+
+					logger.info({ myPN, myLID }, 'Own LID session created successfully')
+
+					// Prometheus: Track LID session migration
+					try {
+						const prometheus = getPrometheus()
+						if (prometheus?.isEnabled()) {
+							prometheus.recordLIDMigration('success')
+						}
+					} catch (err) {
+						logger.trace({ err }, 'Failed to record LID migration metrics')
+					}
+				} catch (error) {
+					logger.error({ error, lid: myLID }, 'Failed to create own LID session')
+
+					// Prometheus: Track LID session migration failure
+					try {
+						const prometheus = getPrometheus()
+						if (prometheus?.isEnabled()) {
+							prometheus.recordLIDMigration('failure')
+						}
+					} catch (err) {
+						logger.trace({ err }, 'Failed to record LID migration error metrics')
+					}
+				}
+			})
+		}
 	})
 
 	ws.on('CB:stream:error', (node: BinaryNode) => {
-		logger.error({ node }, 'stream errored out')
+		const [reasonNode] = getAllBinaryNodeChildren(node)
+		logger.error({ reasonNode, fullErrorNode: node }, 'stream errored out')
 
 		const { reason, statusCode } = getErrorCodeFromStreamError(node)
 
@@ -760,7 +1140,7 @@ export const makeSocket = (config: SocketConfig) => {
 			logger.trace({ err }, 'Failed to record stream error metrics')
 		}
 
-		end(new Boom(`Stream Errored (${reason})`, { statusCode, data: node }))
+		void end(new Boom(`Stream Errored (${reason})`, { statusCode, data: reasonNode || node }))
 	})
 	// stream fail, possible logout
 	ws.on('CB:failure', (node: BinaryNode) => {
@@ -776,16 +1156,16 @@ export const makeSocket = (config: SocketConfig) => {
 			logger.trace({ err }, 'Failed to record connection failure metrics')
 		}
 
-		end(new Boom('Connection Failure', { statusCode: reason, data: node.attrs }))
+		void end(new Boom('Connection Failure', { statusCode: reason, data: node.attrs }))
 	})
 
 	ws.on('CB:ib,,downgrade_webclient', () => {
-		end(new Boom('Multi-device beta not joined', { statusCode: DisconnectReason.multideviceMismatch }))
+		void end(new Boom('Multi-device beta not joined', { statusCode: DisconnectReason.multideviceMismatch }))
 	})
 
-	ws.on('CB:ib,,offline_preview', (node: BinaryNode) => {
+	ws.on('CB:ib,,offline_preview', async (node: BinaryNode) => {
 		logger.info('offline preview received', JSON.stringify(node))
-		sendNode({
+		await sendNode({
 			tag: 'ib',
 			attrs: {},
 			content: [{ tag: 'offline_batch', attrs: { count: '100' } }]
@@ -837,6 +1217,16 @@ export const makeSocket = (config: SocketConfig) => {
 		}
 
 		ev.emit('connection.update', { receivedPendingNotifications: true })
+
+		// Prometheus: Track offline notifications processed
+		try {
+			const prometheus = getPrometheus()
+			if (prometheus?.isEnabled() && offlineNotifs > 0) {
+				prometheus.recordOfflineNotifications(offlineNotifs)
+			}
+		} catch (err) {
+			logger.trace({ err }, 'Failed to record offline notifications metrics')
+		}
 	})
 
 	// update credentials when required
@@ -876,10 +1266,15 @@ export const makeSocket = (config: SocketConfig) => {
 		onUnexpectedError,
 		uploadPreKeys,
 		uploadPreKeysToServerIfRequired,
+		digestKeyBundle,
+		rotateSignedPreKey,
 		requestPairingCode,
+		wamBuffer: publicWAMBuffer,
 		/** Waits for the connection to WA to reach a state */
 		waitForConnectionUpdate: bindWaitForConnectionUpdate(ev),
-		sendWAMBuffer
+		sendWAMBuffer,
+		executeUSyncQuery,
+		onWhatsApp
 	}
 }
 

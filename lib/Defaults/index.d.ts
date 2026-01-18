@@ -47,6 +47,10 @@ export declare const MEDIA_HKDF_KEY_MAPPING: {
 export declare const MEDIA_KEYS: MediaType[];
 export declare const MIN_PREKEY_COUNT = 5;
 export declare const INITIAL_PREKEY_COUNT = 30;
+/** Minimum interval between pre-key uploads (in milliseconds) */
+export declare const MIN_UPLOAD_INTERVAL = 60000;
+/** Timeout for pre-key upload operations (in milliseconds) */
+export declare const UPLOAD_TIMEOUT = 30000;
 /**
  * Default TTL (Time-To-Live) and memory limits for internal caches
  *

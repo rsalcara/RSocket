@@ -1,5 +1,17 @@
 import { proto } from '../../WAProto'
 
+/** LID (Link ID) to Phone Number mapping */
+export type LIDMapping = {
+	lid: string
+	pn: string
+}
+
+/** LID mapping storage interface */
+export type LIDMappingStore = {
+	getLIDPNMappings(lids: string[]): Promise<LIDMapping[]>
+	storeLIDPNMappings(mappings: LIDMapping[]): Promise<void>
+}
+
 type DecryptGroupSignalOpts = {
 	group: string
 	authorJid: string
@@ -63,4 +75,8 @@ export type SignalRepository = {
 	}>
 	injectE2ESession(opts: E2ESessionOpts): Promise<void>
 	jidToSignalProtocolAddress(jid: string): string
+	/** LID mapping storage (optional, for LID migration support) */
+	lidMapping: LIDMappingStore
+	/** Migrate session from phone number to LID (optional, for LID migration support) */
+	migrateSession(pn: string, lid: string): Promise<void>
 }

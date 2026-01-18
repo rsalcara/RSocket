@@ -69,6 +69,10 @@ export type SignalDataTypeMap = {
     };
     'app-state-sync-key': proto.Message.IAppStateSyncKeyData;
     'app-state-sync-version': LTHashState;
+    /** LID (Link ID) to Phone Number mapping for session migration */
+    'lid-mapping': string;
+    /** List of devices for a user (needed for bulk LID migration) */
+    'device-list': string[];
 };
 export type SignalDataSet = {
     [T in keyof SignalDataTypeMap]?: {

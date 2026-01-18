@@ -84,6 +84,22 @@ export class BaileysPrometheusMetrics {
 	public memoryUsageBytes?: Gauge<string>
 	public uptimeSeconds?: Gauge<string>
 
+	// ============================================
+	// CATEGORY 7: PRE-KEY METRICS
+	// ============================================
+	public preKeyUploadsTotal?: Counter<string>
+	public preKeyUploadCount?: Counter<string>
+
+	// ============================================
+	// CATEGORY 8: LID MIGRATION METRICS
+	// ============================================
+	public lidMigrationTotal?: Counter<string>
+
+	// ============================================
+	// CATEGORY 9: OFFLINE NOTIFICATIONS METRICS
+	// ============================================
+	public offlineNotificationsTotal?: Counter<string>
+
 	constructor(logger: ILogger) {
 		this.logger = logger
 		this.config = this.loadConfig()
@@ -370,6 +386,40 @@ export class BaileysPrometheusMetrics {
 			registers: [this.registry]
 		})
 
+		// ============================================
+		// CATEGORY 7: PRE-KEY METRICS
+		// ============================================
+		this.preKeyUploadsTotal = new Counter({
+			name: `${prefix}prekey_uploads_total`,
+			help: 'Total number of pre-key upload operations',
+			registers: [this.registry]
+		})
+
+		this.preKeyUploadCount = new Counter({
+			name: `${prefix}prekey_upload_count`,
+			help: 'Total number of pre-keys uploaded',
+			registers: [this.registry]
+		})
+
+		// ============================================
+		// CATEGORY 8: LID MIGRATION METRICS
+		// ============================================
+		this.lidMigrationTotal = new Counter({
+			name: `${prefix}lid_migration_total`,
+			help: 'Total number of LID session migrations',
+			labelNames: ['status'],
+			registers: [this.registry]
+		})
+
+		// ============================================
+		// CATEGORY 9: OFFLINE NOTIFICATIONS METRICS
+		// ============================================
+		this.offlineNotificationsTotal = new Counter({
+			name: `${prefix}offline_notifications_total`,
+			help: 'Total number of offline notifications processed',
+			registers: [this.registry]
+		})
+
 		// Start periodic system metrics collection
 		this.startSystemMetricsCollection()
 	}
@@ -643,6 +693,31 @@ export class BaileysPrometheusMetrics {
 	public updateActiveConnections(count: number): void {
 		if (!this.config.enabled) return
 		this.activeConnections?.set(count)
+	}
+
+	/**
+	 * Record pre-key upload operation
+	 */
+	public recordPreKeyUpload(count: number): void {
+		if (!this.config.enabled) return
+		this.preKeyUploadsTotal?.inc()
+		this.preKeyUploadCount?.inc(count)
+	}
+
+	/**
+	 * Record LID session migration
+	 */
+	public recordLIDMigration(status: 'success' | 'failure'): void {
+		if (!this.config.enabled) return
+		this.lidMigrationTotal?.inc({ status })
+	}
+
+	/**
+	 * Record offline notifications processed
+	 */
+	public recordOfflineNotifications(count: number): void {
+		if (!this.config.enabled) return
+		this.offlineNotificationsTotal?.inc(count)
 	}
 
 	/**
