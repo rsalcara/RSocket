@@ -1,9 +1,11 @@
 import { Boom } from '@hapi/boom'
 import { proto } from '../../WAProto'
-import { SignalRepository, WAMessageKey } from '../Types'
+import { SignalRepository, WAMessage, WAMessageKey } from '../Types'
 import {
 	areJidsSameUser,
 	BinaryNode,
+	isHostedLidUser,
+	isHostedPnUser,
 	isJidBroadcast,
 	isJidGroup,
 	isJidMetaIa,
@@ -36,6 +38,57 @@ export const NACK_REASONS = {
 	UnsupportedAdminRevoke: 550,
 	UnsupportedLIDGroup: 551,
 	DBOperationFailed: 552
+}
+
+// Retry configuration for failed decryption
+export const DECRYPTION_RETRY_CONFIG = {
+	maxRetries: 3,
+	baseDelayMs: 100,
+	sessionRecordErrors: ['No session record', 'SessionError: No session record']
+}
+
+/**
+ * Get the JID to use for decryption - resolves PN to LID if mapping exists
+ */
+export const getDecryptionJid = async (sender: string, repository: SignalRepository): Promise<string> => {
+	if (isLidUser(sender) || isHostedLidUser(sender)) {
+		return sender
+	}
+
+	const mapped = await repository.lidMapping.getLIDForPN(sender)
+	return mapped || sender
+}
+
+/**
+ * Store LID mapping from message envelope if present
+ */
+const storeMappingFromEnvelope = async (
+	stanza: BinaryNode,
+	sender: string,
+	repository: SignalRepository,
+	decryptionJid: string,
+	logger: ILogger
+): Promise<void> => {
+	// TODO: Handle hosted IDs
+	const { senderAlt } = extractAddressingContext(stanza)
+
+	if (senderAlt && isLidUser(senderAlt) && isPnUser(sender) && decryptionJid === sender) {
+		try {
+			await repository.lidMapping.storeLIDPNMappings([{ lid: senderAlt, pn: sender }])
+			await repository.migrateSession(sender, senderAlt)
+			logger.debug({ sender, senderAlt }, 'Stored LID mapping from envelope')
+		} catch (error) {
+			logger.warn({ sender, senderAlt, error }, 'Failed to store LID mapping')
+		}
+	}
+}
+
+/**
+ * Utility function to check if an error is related to missing session record
+ */
+function isSessionRecordError(error: any): boolean {
+	const errorMessage = error?.message || error?.toString() || ''
+	return DECRYPTION_RETRY_CONFIG.sessionRecordErrors.some(errorPattern => errorMessage.includes(errorPattern))
 }
 
 type MessageType =
@@ -198,7 +251,7 @@ export function decodeMessageNode(stanza: BinaryNode, meId: string, meLid: strin
 		...(peer_recipient_lid && { peer_recipient_lid }),
 	};
 
-	const fullMessage: proto.IWebMessageInfo = {
+	const fullMessage: WAMessage = {
 		key,
 		messageTimestamp: +stanza.attrs.t,
 		pushName: pushname,
@@ -238,6 +291,16 @@ export const decryptMessageNode = (
 						fullMessage.verifiedBizName = details.verifiedName
 					}
 
+					// Handle view_once messages
+					if (tag === 'unavailable' && attrs.type === 'view_once') {
+						fullMessage.key.isViewOnce = true
+					}
+
+					// Track retry count
+					if (attrs.count && tag === 'enc') {
+						fullMessage.retryCount = Number(attrs.count)
+					}
+
 					if (tag !== 'enc' && tag !== 'plaintext') {
 						continue
 					}
@@ -249,6 +312,14 @@ export const decryptMessageNode = (
 					decryptables += 1
 
 					let msgBuffer: Uint8Array
+
+					// Get the appropriate JID for decryption (resolves PN to LID if needed)
+					const decryptionJid = await getDecryptionJid(author, repository)
+
+					// Store LID mapping from envelope if present (for non-plaintext messages)
+					if (tag !== 'plaintext') {
+						await storeMappingFromEnvelope(stanza, author, repository, decryptionJid, logger)
+					}
 
 					try {
 						const e2eType = tag === 'plaintext' ? 'plaintext' : attrs.type
@@ -262,9 +333,8 @@ export const decryptMessageNode = (
 								break
 							case 'pkmsg':
 							case 'msg':
-								const user = isJidUser(sender) ? sender : author
 								msgBuffer = await repository.decryptMessage({
-									jid: user,
+									jid: decryptionJid,
 									type: e2eType,
 									ciphertext: content
 								})
@@ -288,7 +358,7 @@ export const decryptMessageNode = (
 									item: msg.senderKeyDistributionMessage
 								})
 							} catch (err) {
-								logger.error({ key: fullMessage.key, err }, 'failed to decrypt message')
+								logger.error({ key: fullMessage.key, err }, 'failed to process sender key distribution message')
 							}
 						}
 
@@ -297,16 +367,26 @@ export const decryptMessageNode = (
 						} else {
 							fullMessage.message = msg
 						}
-					} catch (err) {
-						logger.error({ key: fullMessage.key, err }, 'failed to decrypt message')
+					} catch (err: any) {
+						const errorContext = {
+							key: fullMessage.key,
+							err,
+							messageType: tag === 'plaintext' ? 'plaintext' : attrs.type,
+							sender,
+							author,
+							isSessionRecordError: isSessionRecordError(err)
+						}
+
+						logger.error(errorContext, 'failed to decrypt message')
+
 						fullMessage.messageStubType = proto.WebMessageInfo.StubType.CIPHERTEXT
-						fullMessage.messageStubParameters = [err.message]
+						fullMessage.messageStubParameters = [err.message?.toString()]
 					}
 				}
 			}
 
 			// if nothing was found to decrypt
-			if (!decryptables) {
+			if (!decryptables && !fullMessage.key?.isViewOnce) {
 				fullMessage.messageStubType = proto.WebMessageInfo.StubType.CIPHERTEXT
 				fullMessage.messageStubParameters = [NO_MESSAGE_FOUND_ERROR_TEXT]
 			}

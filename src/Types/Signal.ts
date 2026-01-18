@@ -12,6 +12,8 @@ export type LIDMappingStore = {
 	storeLIDPNMappings(mappings: LIDMapping[]): Promise<void>
 	/** Get phone number for a single LID */
 	getPNForLID(lid: string): Promise<string | undefined>
+	/** Get LID for a single phone number */
+	getLIDForPN(pn: string): Promise<string | undefined>
 }
 
 type DecryptGroupSignalOpts = {
@@ -79,6 +81,10 @@ export type SignalRepository = {
 	jidToSignalProtocolAddress(jid: string): string
 	/** LID mapping storage (optional, for LID migration support) */
 	lidMapping: LIDMappingStore
-	/** Migrate session from phone number to LID (optional, for LID migration support) */
-	migrateSession(pn: string, lid: string): Promise<void>
+	/** Migrate session from phone number to LID with bulk support */
+	migrateSession(fromJid: string, toJid: string): Promise<{ migrated: number; skipped: number; total: number }>
+	/** Validate if a session exists for a JID */
+	validateSession(jid: string): Promise<{ exists: boolean; reason?: string }>
+	/** Delete sessions for multiple JIDs */
+	deleteSession(jids: string[]): Promise<void>
 }
