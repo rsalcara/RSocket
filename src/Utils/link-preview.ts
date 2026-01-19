@@ -70,7 +70,7 @@ export const getUrlInfo = async (
 					return false
 				}
 			},
-			headers: opts.fetchOpts as {}
+			headers: opts.fetchOpts?.headers as {}
 		})
 		if (info && 'title' in info && info.title) {
 			const [image] = info.images
@@ -97,14 +97,14 @@ export const getUrlInfo = async (
 			} else {
 				try {
 					urlInfo.jpegThumbnail = image ? (await getCompressedJpegThumbnail(image, opts)).buffer : undefined
-				} catch (error) {
+				} catch (error: any) {
 					opts.logger?.debug({ err: error.stack, url: previewLink }, 'error in generating thumbnail')
 				}
 			}
 
 			return urlInfo
 		}
-	} catch (error) {
+	} catch (error: any) {
 		if (!error.message.includes('receive a valid')) {
 			throw error
 		}

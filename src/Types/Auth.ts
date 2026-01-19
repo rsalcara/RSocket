@@ -19,6 +19,12 @@ export type SignalIdentity = {
 	identifierKey: Uint8Array
 }
 
+/** LID (Link ID) to Phone Number mapping (upstream feature) */
+export type LIDMapping = {
+	pn: string
+	lid: string
+}
+
 export type LTHashState = {
 	version: number
 	hash: Buffer

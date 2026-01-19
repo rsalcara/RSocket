@@ -120,6 +120,10 @@ export type BaileysEventMap = {
 				setting: 'notificationActivitySetting'
 				value: proto.SyncActionValue.NotificationActivitySettingAction.NotificationActivitySetting
 		  }
+		| {
+				setting: 'channelsPersonalisedRecommendation'
+				value: proto.SyncActionValue.IPrivacySettingChannelsPersonalisedRecommendationAction
+		  }
 }
 
 export type BufferedEventData = {
