@@ -1,4 +1,5 @@
 import EventEmitter from 'events'
+import { proto } from '../../WAProto'
 import type {
 	BaileysEvent,
 	BaileysEventEmitter,
@@ -264,6 +265,7 @@ function updateAdaptiveMetrics(
 export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter => {
 	const ev = new EventEmitter()
 	const historyCache = new Set<string>()
+	const historyCacheOrder: string[] = [] // Track insertion order for LRU eviction (PR #2273)
 
 	let data = makeBufferData()
 	let buffersInProgress = 0
@@ -522,27 +524,34 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 		return true
 	}
 
+	// LRU eviction thresholds (PR #2273 optimization)
+	const CLEANUP_THRESHOLD = Math.floor(BUFFER_CONFIG.MAX_HISTORY_CACHE_SIZE * 0.8) // Start cleanup at 80%
+	const CLEANUP_TARGET = Math.floor(BUFFER_CONFIG.MAX_HISTORY_CACHE_SIZE * 0.6) // Reduce to 60% when cleaning
+
 	function cleanHistoryCache() {
-		if (historyCache.size > BUFFER_CONFIG.MAX_HISTORY_CACHE_SIZE) {
-			// Convert to array, remove oldest 20%, convert back to Set
-			const cacheArray = Array.from(historyCache)
-			const itemsToRemove = Math.floor(cacheArray.length * 0.2)
-			const newCache = cacheArray.slice(itemsToRemove)
-			historyCache.clear()
-			newCache.forEach(item => historyCache.add(item))
+		// Aggressive cleanup at 80% capacity using LRU strategy (PR #2273)
+		if (historyCache.size >= CLEANUP_THRESHOLD) {
+			const removeCount = historyCache.size - CLEANUP_TARGET
 
 			// Standard logger debug
 			logger.debug({
-				removed: itemsToRemove,
-				remaining: historyCache.size,
+				cacheSize: historyCache.size,
+				removing: removeCount,
+				targetSize: CLEANUP_TARGET,
 				maxSize: BUFFER_CONFIG.MAX_HISTORY_CACHE_SIZE
-			}, 'cleaned history cache')
+			}, 'History cache cleanup - removing oldest entries (LRU)')
 
 			// BAILEYS_LOG logging
 			logEventBuffer('cache_cleanup', {
-				removed: itemsToRemove,
-				remaining: historyCache.size
+				removed: removeCount,
+				remaining: CLEANUP_TARGET
 			})
+
+			// Remove oldest entries using LRU order (PR #2273 optimization)
+			for (let i = 0; i < removeCount && historyCacheOrder.length > 0; i++) {
+				const oldestKey = historyCacheOrder.shift()!
+				historyCache.delete(oldestKey)
+			}
 
 			// Record Prometheus metric
 			const prometheus = getPrometheus()
@@ -626,6 +635,7 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 		buffersInProgress = 0
 		data = makeBufferData()
 		historyCache.clear()
+		historyCacheOrder.length = 0 // Clear LRU order tracking (PR #2273)
 		bufferMetrics = {
 			itemsBuffered: 0,
 			flushCount: 0,
@@ -735,7 +745,7 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 					}, 'buffering events')
 				}
 
-				append(data, historyCache, event as BufferableEvent, evData, logger)
+				append(data, historyCache, historyCacheOrder, event as BufferableEvent, evData, logger)
 				return true
 			}
 
@@ -814,6 +824,7 @@ const makeBufferData = (): BufferedEventData => {
 function append<E extends BufferableEvent>(
 	data: BufferedEventData,
 	historyCache: Set<string>,
+	historyCacheOrder: string[], // Track insertion order for LRU eviction (PR #2273)
 	event: E,
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	eventData: any,
@@ -831,6 +842,7 @@ function append<E extends BufferableEvent>(
 				if (!existingChat && !historyCache.has(id)) {
 					data.historySets.chats[id] = chat
 					historyCache.add(id)
+					historyCacheOrder.push(id) // Track insertion order for LRU (PR #2273)
 
 					absorbingChatUpdate(chat)
 				}
@@ -846,6 +858,7 @@ function append<E extends BufferableEvent>(
 					if (!historyCache.has(historyContactId) || hasAnyName) {
 						data.historySets.contacts[contact.id] = contact
 						historyCache.add(historyContactId)
+						historyCacheOrder.push(historyContactId) // Track insertion order for LRU (PR #2273)
 					}
 				}
 			}
@@ -856,6 +869,7 @@ function append<E extends BufferableEvent>(
 				if (!existingMsg && !historyCache.has(key)) {
 					data.historySets.messages[key] = message
 					historyCache.add(key)
+					historyCacheOrder.push(key) // Track insertion order for LRU (PR #2273)
 				}
 			}
 
@@ -1152,10 +1166,14 @@ function consolidateEvents(data: BufferedEventData) {
 	const map: BaileysEventData = {}
 
 	if (!data.historySets.empty) {
+		// Optimized: Cache Object.values() in variables to avoid duplicate calls (PR #2273)
+		const historyChats = Object.values(data.historySets.chats)
+		const historyMessages = Object.values(data.historySets.messages)
+		const historyContacts = Object.values(data.historySets.contacts)
 		map['messaging-history.set'] = {
-			chats: Object.values(data.historySets.chats),
-			messages: Object.values(data.historySets.messages),
-			contacts: Object.values(data.historySets.contacts),
+			chats: historyChats,
+			messages: historyMessages,
+			contacts: historyContacts,
 			syncType: data.historySets.syncType,
 			progress: data.historySets.progress,
 			isLatest: data.historySets.isLatest,
@@ -1197,16 +1215,30 @@ function consolidateEvents(data: BufferedEventData) {
 		map['messages.delete'] = { keys: messageDeleteList }
 	}
 
-	const messageReactionList = Object.values(data.messageReactions).flatMap(({ key, reactions }) =>
-		reactions.flatMap(reaction => ({ key, reaction }))
-	)
+	// Optimized: Direct for...in loop instead of Object.values().flatMap() (PR #2273)
+	// Original: O(3N) complexity with 2x flatMap creating 3 temporary arrays
+	// Optimized: O(N) complexity with single pass, no temporary arrays
+	const messageReactionList: Array<{ key: WAMessageKey; reaction: proto.IReaction }> = []
+	for (const id in data.messageReactions) {
+		if (!Object.hasOwnProperty.call(data.messageReactions, id)) continue
+		const { key, reactions } = data.messageReactions[id]!
+		for (let i = 0; i < reactions.length; i++) {
+			messageReactionList.push({ key, reaction: reactions[i]! })
+		}
+	}
 	if (messageReactionList.length) {
 		map['messages.reaction'] = messageReactionList
 	}
 
-	const messageReceiptList = Object.values(data.messageReceipts).flatMap(({ key, userReceipt }) =>
-		userReceipt.flatMap(receipt => ({ key, receipt }))
-	)
+	// Optimized: Direct for...in loop instead of Object.values().flatMap() (PR #2273)
+	const messageReceiptList: Array<{ key: WAMessageKey; receipt: proto.IUserReceipt }> = []
+	for (const id in data.messageReceipts) {
+		if (!Object.hasOwnProperty.call(data.messageReceipts, id)) continue
+		const { key, userReceipt } = data.messageReceipts[id]!
+		for (let i = 0; i < userReceipt.length; i++) {
+			messageReceiptList.push({ key, receipt: userReceipt[i]! })
+		}
+	}
 	if (messageReceiptList.length) {
 		map['message-receipt.update'] = messageReceiptList
 	}
