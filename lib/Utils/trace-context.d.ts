@@ -213,3 +213,4 @@ export declare function timeOperation<T>(name: string, fn: () => Promise<T>): Pr
  * @returns true if AsyncLocalStorage is available
  */
 export declare function isTraceContextAvailable(): boolean;
+//# sourceMappingURL=trace-context.d.ts.map

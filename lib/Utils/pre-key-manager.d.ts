@@ -1,5 +1,5 @@
-import type { SignalDataSet, SignalDataTypeMap, SignalKeyStore } from '../Types';
-import type { ILogger } from './logger';
+import type { SignalDataSet, SignalDataTypeMap, SignalKeyStore } from '../Types/index.js';
+import type { ILogger } from './logger.js';
 /**
  * Manages pre-key operations with proper concurrency control
  *
@@ -30,3 +30,4 @@ export declare class PreKeyManager {
      */
     validateDeletions(data: SignalDataSet, keyType: keyof SignalDataTypeMap): Promise<void>;
 }
+//# sourceMappingURL=pre-key-manager.d.ts.map

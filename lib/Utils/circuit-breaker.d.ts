@@ -78,3 +78,4 @@ export declare class CircuitBreaker {
  * Create a PreKey-specific circuit breaker with sensible defaults
  */
 export declare function createPreKeyCircuitBreaker(logger?: any): CircuitBreaker;
+//# sourceMappingURL=circuit-breaker.d.ts.map

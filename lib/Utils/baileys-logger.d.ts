@@ -141,3 +141,4 @@ export declare function logSocketCacheMetrics(metrics: {
     totalMaxKeys: number;
     avgUtilization: number;
 }): void;
+//# sourceMappingURL=baileys-logger.d.ts.map

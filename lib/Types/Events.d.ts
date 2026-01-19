@@ -1,14 +1,14 @@
 import type { Boom } from '@hapi/boom';
 import { proto } from '../../WAProto';
-import { AuthenticationCreds } from './Auth';
-import { WACallEvent } from './Call';
-import { Chat, ChatUpdate, PresenceData } from './Chat';
-import { Contact } from './Contact';
-import { GroupMetadata, ParticipantAction, RequestJoinAction, RequestJoinMethod } from './GroupMetadata';
-import { Label } from './Label';
-import { LabelAssociation } from './LabelAssociation';
-import { MessageUpsertType, MessageUserReceiptUpdate, WAMessage, WAMessageKey, WAMessageUpdate } from './Message';
-import { ConnectionState } from './State';
+import type { AuthenticationCreds } from './Auth.js';
+import type { WACallEvent } from './Call.js';
+import type { Chat, ChatUpdate, PresenceData } from './Chat.js';
+import type { Contact } from './Contact.js';
+import type { GroupMetadata, GroupParticipant, ParticipantAction, RequestJoinAction, RequestJoinMethod } from './GroupMetadata.js';
+import type { Label } from './Label.js';
+import type { LabelAssociation } from './LabelAssociation.js';
+import type { MessageUpsertType, MessageUserReceiptUpdate, WAMessage, WAMessageKey, WAMessageUpdate } from './Message.js';
+import type { ConnectionState } from './State.js';
 export type BaileysEventMap = {
     /** connection state has been updated -- WS closed, opened, connecting etc. */
     'connection.update': Partial<ConnectionState>;
@@ -21,13 +21,19 @@ export type BaileysEventMap = {
         messages: WAMessage[];
         isLatest?: boolean;
         progress?: number | null;
-        syncType?: proto.HistorySync.HistorySyncType;
+        syncType?: proto.HistorySync.HistorySyncType | null;
         peerDataRequestSessionId?: string | null;
     };
     /** upsert chats */
     'chats.upsert': Chat[];
     /** update the given chats */
     'chats.update': ChatUpdate[];
+    /** LID to phone number mapping update */
+    'lid-mapping.update': {
+        lid: string;
+        pn: string;
+    };
+    /** @deprecated use 'lid-mapping.update' instead */
     'chats.phoneNumberShare': {
         lid: string;
         jid: string;
@@ -80,15 +86,26 @@ export type BaileysEventMap = {
     'group-participants.update': {
         id: string;
         author: string;
-        participants: string[];
+        authorPn?: string;
+        participants: string[] | GroupParticipant[];
         action: ParticipantAction;
     };
     'group.join-request': {
         id: string;
         author: string;
+        authorPn?: string;
         participant: string;
+        participantPn?: string;
         action: RequestJoinAction;
         method: RequestJoinMethod;
+    };
+    /** update the labels assigned to a group participant */
+    'group.member-tag.update': {
+        groupId: string;
+        participant: string;
+        participantAlt?: string;
+        label: string;
+        messageTimestamp?: number;
     };
     'blocklist.set': {
         blocklist: string[];
@@ -129,6 +146,36 @@ export type BaileysEventMap = {
     'newsletter-settings.update': {
         id: string;
         update: any;
+    };
+    /** Settings and actions sync events */
+    'chats.lock': {
+        id: string;
+        locked: boolean;
+    };
+    'settings.update': {
+        setting: 'unarchiveChats';
+        value: boolean;
+    } | {
+        setting: 'locale';
+        value: string;
+    } | {
+        setting: 'disableLinkPreviews';
+        value: proto.SyncActionValue.IPrivacySettingDisableLinkPreviewsAction;
+    } | {
+        setting: 'timeFormat';
+        value: proto.SyncActionValue.ITimeFormatAction;
+    } | {
+        setting: 'privacySettingRelayAllCalls';
+        value: proto.SyncActionValue.IPrivacySettingRelayAllCalls;
+    } | {
+        setting: 'statusPrivacy';
+        value: proto.SyncActionValue.IStatusPrivacyAction;
+    } | {
+        setting: 'notificationActivitySetting';
+        value: proto.SyncActionValue.NotificationActivitySettingAction.NotificationActivitySetting;
+    } | {
+        setting: 'channelsPersonalisedRecommendation';
+        value: proto.SyncActionValue.IPrivacySettingChannelsPersonalisedRecommendationAction;
     };
 };
 export type BufferedEventData = {
@@ -196,3 +243,4 @@ export interface BaileysEventEmitter {
     removeAllListeners<T extends keyof BaileysEventMap>(event: T): void;
     emit<T extends keyof BaileysEventMap>(event: T, arg: BaileysEventMap[T]): boolean;
 }
+//# sourceMappingURL=Events.d.ts.map

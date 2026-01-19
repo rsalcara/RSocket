@@ -1,5 +1,5 @@
 import { Counter, Gauge, Histogram } from 'prom-client';
-import type { ILogger } from './logger';
+import type { ILogger } from './logger.js';
 /**
  * BaileysPrometheusMetrics - Production-grade Prometheus metrics exporter
  *
@@ -212,3 +212,4 @@ export declare function initPrometheus(logger: ILogger): BaileysPrometheusMetric
  * Get Prometheus metrics singleton instance
  */
 export declare function getPrometheus(): BaileysPrometheusMetrics | null;
+//# sourceMappingURL=prometheus-metrics.d.ts.map

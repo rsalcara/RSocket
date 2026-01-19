@@ -8,6 +8,10 @@ export type LIDMapping = {
 export type LIDMappingStore = {
     getLIDPNMappings(lids: string[]): Promise<LIDMapping[]>;
     storeLIDPNMappings(mappings: LIDMapping[]): Promise<void>;
+    /** Get phone number for a single LID */
+    getPNForLID(lid: string): Promise<string | undefined>;
+    /** Get LID for a single phone number */
+    getLIDForPN(pn: string): Promise<string | undefined>;
 };
 type DecryptGroupSignalOpts = {
     group: string;
@@ -65,7 +69,25 @@ export type SignalRepository = {
     jidToSignalProtocolAddress(jid: string): string;
     /** LID mapping storage (optional, for LID migration support) */
     lidMapping: LIDMappingStore;
-    /** Migrate session from phone number to LID (optional, for LID migration support) */
-    migrateSession(pn: string, lid: string): Promise<void>;
+    /** Migrate session from phone number to LID with bulk support */
+    migrateSession(fromJid: string, toJid: string): Promise<{
+        migrated: number;
+        skipped: number;
+        total: number;
+    }>;
+    /** Validate if a session exists for a JID */
+    validateSession(jid: string): Promise<{
+        exists: boolean;
+        reason?: string;
+    }>;
+    /** Delete sessions for multiple JIDs */
+    deleteSession(jids: string[]): Promise<void>;
 };
+/**
+ * Alias for upstream compatibility.
+ * In upstream, SignalRepositoryWithLIDStore extends SignalRepository with lidMapping.
+ * Our fork already includes lidMapping in SignalRepository, so this is just an alias.
+ */
+export type SignalRepositoryWithLIDStore = SignalRepository;
 export {};
+//# sourceMappingURL=Signal.d.ts.map

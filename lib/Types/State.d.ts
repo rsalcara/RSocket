@@ -1,4 +1,5 @@
-import { Contact } from './Contact';
+import { Boom } from '@hapi/boom';
+import type { Contact } from './Contact.js';
 export type WAConnectionState = 'open' | 'connecting' | 'close';
 /**
  * Sync state machine for better sync handling
@@ -19,7 +20,7 @@ export type ConnectionState = {
     connection: WAConnectionState;
     /** the error that caused the connection to close */
     lastDisconnect?: {
-        error: Error | undefined;
+        error: Boom | Error | undefined;
         date: Date;
     };
     /** is this a new login */
@@ -39,3 +40,4 @@ export type ConnectionState = {
      * */
     isOnline?: boolean;
 };
+//# sourceMappingURL=State.d.ts.map

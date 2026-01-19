@@ -117,3 +117,4 @@ export declare function validateJid(jid: string): {
     valid: boolean;
     error?: string;
 };
+//# sourceMappingURL=jid-utils.d.ts.map

@@ -1,6 +1,6 @@
 import type { proto } from '../../WAProto';
-import type { Contact } from './Contact';
-import type { MinimalMessage } from './Message';
+import type { Contact } from './Contact.js';
+import type { MinimalMessage } from './Message.js';
 export type KeyPair = {
     public: Uint8Array;
     private: Uint8Array;
@@ -75,6 +75,11 @@ export type SignalDataTypeMap = {
     'lid-mapping': string;
     /** List of devices for a user (needed for bulk LID migration) */
     'device-list': string[];
+    /** TC Token for profile updates and presence */
+    tctoken: {
+        token: Buffer;
+        timestamp?: string;
+    };
 };
 export type SignalDataSet = {
     [T in keyof SignalDataTypeMap]?: {
@@ -112,3 +117,4 @@ export type AuthenticationState = {
     keys: SignalKeyStore;
 };
 export {};
+//# sourceMappingURL=Auth.d.ts.map

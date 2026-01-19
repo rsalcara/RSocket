@@ -1,4 +1,4 @@
-import type { SocketConfig } from '../Types';
+import type { SocketConfig } from '../Types/index.js';
 /**
  * Calculates the backoff delay with exponential backoff and optional jitter for retry logic.
  *
@@ -103,3 +103,4 @@ export declare function validateRetryConfig(config: SocketConfig): {
     errors: string[];
     warnings: string[];
 };
+//# sourceMappingURL=retry-utils.d.ts.map
