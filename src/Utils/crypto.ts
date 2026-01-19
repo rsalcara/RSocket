@@ -131,15 +131,18 @@ export async function hkdf(
 	expandedLength: number,
 	info: { salt?: Buffer; info?: string }
 ): Promise<Buffer> {
-	// Ensure we have a Uint8Array for the key material
-	const inputKeyMaterial = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer)
+	// Normalize to a Uint8Array whose underlying buffer is a regular ArrayBuffer
+	// Cloning via new Uint8Array(...) guarantees compatibility with WebCrypto types
+	const inputKeyMaterial = new Uint8Array(buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer))
 
 	// Set default values if not provided
 	const salt = info.salt ? new Uint8Array(info.salt) : new Uint8Array(0)
 	const infoBytes = info.info ? new TextEncoder().encode(info.info) : new Uint8Array(0)
 
-	// Import the input key material
-	const importedKey: CryptoKey= await subtle.importKey('raw', inputKeyMaterial, { name: 'HKDF' }, false, ['deriveBits'])
+	// Import the input key material (cast to BufferSource for WebCrypto compatibility)
+	const importedKey = await subtle.importKey('raw', inputKeyMaterial as BufferSource, { name: 'HKDF' }, false, [
+		'deriveBits'
+	])
 
 	// Derive bits using HKDF
 	const derivedBits = await subtle.deriveBits(
@@ -160,17 +163,19 @@ export async function derivePairingCodeKey(pairingCode: string, salt: Buffer): P
 	// Convert inputs to formats Web Crypto API can work with
 	const encoder = new TextEncoder()
 	const pairingCodeBuffer = encoder.encode(pairingCode)
-	const saltBuffer = salt instanceof Uint8Array ? salt : new Uint8Array(salt)
+	const saltBuffer = new Uint8Array(salt instanceof Uint8Array ? salt : new Uint8Array(salt))
 
-	// Import the pairing code as key material
-	const keyMaterial = await subtle.importKey('raw', pairingCodeBuffer, { name: 'PBKDF2' }, false, ['deriveBits'])
+	// Import the pairing code as key material (cast to BufferSource for WebCrypto compatibility)
+	const keyMaterial = await subtle.importKey('raw', pairingCodeBuffer as BufferSource, { name: 'PBKDF2' }, false, [
+		'deriveBits'
+	])
 
 	// Derive bits using PBKDF2 with the same parameters
 	// 2 << 16 = 131,072 iterations
 	const derivedBits = await subtle.deriveBits(
 		{
 			name: 'PBKDF2',
-			salt: saltBuffer,
+			salt: saltBuffer as BufferSource,
 			iterations: 2 << 16,
 			hash: 'SHA-256'
 		},
