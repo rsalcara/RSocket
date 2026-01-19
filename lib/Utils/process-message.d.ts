@@ -1,5 +1,6 @@
 import { proto } from '../../WAProto';
 import type { AuthenticationCreds, BaileysEventEmitter, CacheStore, SignalKeyStoreWithTransaction, SocketConfig, WAMessage, WAMessageKey } from '../Types';
+import { type HistorySyncDebugConfig } from './history-debug';
 import type { ILogger } from './logger';
 import type { SignalRepository } from '../Types/Signal';
 type ProcessMessageContext = {
@@ -14,6 +15,8 @@ type ProcessMessageContext = {
     signalRepository: SignalRepository;
     /** Function to get message by key (required for event response decryption) */
     getMessage: SocketConfig['getMessage'];
+    /** Debug configuration for history sync */
+    historySyncDebug?: Partial<HistorySyncDebugConfig>;
 };
 /** Cleans a received message to further processing */
 export declare const cleanMessage: (message: WAMessage, meId: string, meLid?: string) => void;
@@ -58,6 +61,6 @@ export declare function decryptPollVote({ encPayload, encIv }: proto.Message.IPo
  * @returns event response message
  */
 export declare function decryptEventResponse({ encPayload, encIv }: proto.Message.IPollEncValue, { eventCreatorJid, eventMsgId, eventEncKey, responderJid }: EventContext): proto.Message.EventResponseMessage;
-declare const processMessage: (message: WAMessage, { shouldProcessHistoryMsg, placeholderResendCache, ev, creds, signalRepository, keyStore, logger, options, getMessage }: ProcessMessageContext) => Promise<void>;
+declare const processMessage: (message: WAMessage, { shouldProcessHistoryMsg, placeholderResendCache, ev, creds, signalRepository, keyStore, logger, options, getMessage, historySyncDebug }: ProcessMessageContext) => Promise<void>;
 export default processMessage;
 //# sourceMappingURL=process-message.d.ts.map

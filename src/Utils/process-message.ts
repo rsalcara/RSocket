@@ -31,6 +31,11 @@ import {
 import { aesDecryptGCM, hmacSign } from './crypto'
 import { getKeyAuthor, toNumber } from './generics'
 import { downloadAndProcessHistorySyncNotification } from './history'
+import {
+	createHistorySyncDebugger,
+	DEFAULT_HISTORY_DEBUG_CONFIG,
+	type HistorySyncDebugConfig
+} from './history-debug'
 import type { ILogger } from './logger'
 import type { SignalRepository } from '../Types/Signal'
 
@@ -46,6 +51,8 @@ type ProcessMessageContext = {
 	signalRepository: SignalRepository
 	/** Function to get message by key (required for event response decryption) */
 	getMessage: SocketConfig['getMessage']
+	/** Debug configuration for history sync */
+	historySyncDebug?: Partial<HistorySyncDebugConfig>
 }
 
 const REAL_MSG_STUB_TYPES = new Set([
@@ -229,7 +236,8 @@ const processMessage = async (
 		keyStore,
 		logger,
 		options,
-		getMessage
+		getMessage,
+		historySyncDebug
 	}: ProcessMessageContext
 ) => {
 	const meId = creds.me!.id
@@ -285,6 +293,29 @@ const processMessage = async (
 					}
 
 					const data = await downloadAndProcessHistorySyncNotification(histNotification, options)
+
+					// Debug logging for history sync (if enabled)
+					if (historySyncDebug?.enabled) {
+						const debugConfig = { ...DEFAULT_HISTORY_DEBUG_CONFIG, ...historySyncDebug }
+						const debugger_ = createHistorySyncDebugger(debugConfig, logger)
+
+						// Create a synthetic HistorySync object from processed data for debugging
+						// This avoids downloading the history twice
+						const syntheticHistorySync: proto.IHistorySync = {
+							syncType: data.syncType,
+							progress: data.progress,
+							conversations: data.chats as proto.IConversation[],
+							pushnames: data.contacts
+								.filter(c => c.notify)
+								.map(c => ({ id: c.id, pushname: c.notify })),
+							phoneNumberToLidMappings: data.lidPnMappings?.map(m => ({
+								pnJid: m.pn,
+								lidJid: m.lid
+							}))
+						}
+
+						debugger_.log(syntheticHistorySync, data.lidPnMappings || [])
+					}
 
 					// Emit LID-PN mappings from history sync (PR #2268)
 					if (data.lidPnMappings?.length) {
