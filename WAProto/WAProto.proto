@@ -802,6 +802,10 @@ message ClientPayload {
     optional TrafficAnonymization trafficAnonymization = 40;
     optional bool lidDbMigrated = 41;
     optional AccountType accountType = 42;
+    optional sfixed32 connectionSequenceInfo = 43;
+    optional bool paaLink = 44;
+    optional int32 preacksCount = 45;
+    optional int32 processingQueueSize = 46;
     enum AccountType {
         DEFAULT = 0;
         GUEST = 1;
@@ -1297,6 +1301,11 @@ message DeviceProps {
         optional bool supportFbidBotChatHistory = 12;
         optional bool supportAddOnHistorySyncMigration = 13;
         optional bool supportMessageAssociation = 14;
+        optional bool supportGroupHistory = 15;
+        optional bool onDemandReady = 16;
+        optional bool supportGuestChat = 17;
+        optional bool completeOnDemandReady = 18;
+        optional uint32 thumbnailSyncDaysLimit = 19;
     }
     
     enum PlatformType {
