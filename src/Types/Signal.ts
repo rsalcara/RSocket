@@ -88,3 +88,10 @@ export type SignalRepository = {
 	/** Delete sessions for multiple JIDs */
 	deleteSession(jids: string[]): Promise<void>
 }
+
+/**
+ * Alias for upstream compatibility.
+ * In upstream, SignalRepositoryWithLIDStore extends SignalRepository with lidMapping.
+ * Our fork already includes lidMapping in SignalRepository, so this is just an alias.
+ */
+export type SignalRepositoryWithLIDStore = SignalRepository
