@@ -1,4 +1,3 @@
-import { AxiosRequestConfig } from 'axios'
 import { proto } from '../../WAProto'
 import type {
 	AuthenticationCreds,
@@ -42,7 +41,7 @@ type ProcessMessageContext = {
 	keyStore: SignalKeyStoreWithTransaction
 	ev: BaileysEventEmitter
 	logger?: ILogger
-	options: AxiosRequestConfig<{}>
+	options: RequestInit
 	/** Signal repository for LID mapping (optional, for LID migration support) */
 	signalRepository?: SignalRepository
 	/** Function to get message by key (optional, for event response decryption) */

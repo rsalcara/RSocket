@@ -1,5 +1,4 @@
 import { Boom } from '@hapi/boom'
-import axios, { AxiosRequestConfig } from 'axios'
 import { createHash, randomBytes } from 'crypto'
 import { platform, release } from 'os'
 import { proto } from '../../WAProto'
@@ -258,15 +257,13 @@ export const bindWaitForConnectionUpdate = (ev: BaileysEventEmitter) => bindWait
  * utility that fetches latest baileys version from the master branch.
  * Use to ensure your WA connection is always on the latest version
  */
-export const fetchLatestBaileysVersion = async (options: AxiosRequestConfig<{}> = {}) => {
+export const fetchLatestBaileysVersion = async (options: RequestInit = {}) => {
 	const URL = 'https://raw.githubusercontent.com/WhiskeySockets/Baileys/master/src/Defaults/baileys-version.json'
 	try {
-		const result = await axios.get<{ version: WAVersion }>(URL, {
-			...options,
-			responseType: 'json'
-		})
+		const response = await fetch(URL, options)
+		const data = await response.json() as { version: WAVersion }
 		return {
-			version: result.data.version,
+			version: data.version,
 			isLatest: true
 		}
 	} catch (error) {
@@ -282,20 +279,20 @@ export const fetchLatestBaileysVersion = async (options: AxiosRequestConfig<{}> 
  * A utility that fetches the latest web version of whatsapp.
  * Use to ensure your WA connection is always on the latest version
  */
-export const fetchLatestWaWebVersion = async (options: AxiosRequestConfig<{}>) => {
+export const fetchLatestWaWebVersion = async (options: RequestInit = {}) => {
 	try {
 		// Anti-bot headers to bypass detection (upstream improvement)
-		const defaultHeaders = {
+		const defaultHeaders: HeadersInit = {
 			'sec-fetch-site': 'none',
 			'user-agent':
 				'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 		}
 
-		const { data } = await axios.get('https://web.whatsapp.com/sw.js', {
+		const response = await fetch('https://web.whatsapp.com/sw.js', {
 			...options,
-			headers: { ...defaultHeaders, ...options.headers },
-			responseType: 'text'
+			headers: { ...defaultHeaders, ...(options.headers as Record<string, string>) }
 		})
+		const data = await response.text()
 
 		const regex = /\\?"client_revision\\?":\s*(\d+)/
 		const match = data.match(regex)

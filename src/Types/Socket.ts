@@ -1,4 +1,3 @@
-import { AxiosRequestConfig } from 'axios'
 import type { Agent } from 'https'
 import type { URL } from 'url'
 import { proto } from '../../WAProto'
@@ -170,8 +169,8 @@ export type SocketConfig = {
 	 */
 	maxSocketClientListeners?: number
 
-	/** options for axios */
-	options: AxiosRequestConfig<{}>
+	/** options for fetch requests */
+	options: RequestInit
 	/**
 	 * fetch a message from your store
 	 * implement this so that messages failed to send
