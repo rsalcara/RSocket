@@ -1,0 +1,14 @@
+{
+  "name": "waproto",
+  "type": "module",
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.js",
+      "require": "./index.js",
+      "default": "./index.js"
+    }
+  }
+}
