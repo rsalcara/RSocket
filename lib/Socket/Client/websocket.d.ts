@@ -1,5 +1,5 @@
 import WebSocket from 'ws';
-import { AbstractSocketClient } from './types.js';
+import { AbstractSocketClient } from './types';
 /**
  * WebSocket Client with proper listener management to prevent memory leaks
  *

@@ -1,6 +1,6 @@
-import { SignalRepository, WAMessage } from '../Types/index.js';
-import { BinaryNode } from '../WABinary/index.js';
-import { ILogger } from './logger.js';
+import { SignalRepository, WAMessage } from '../Types';
+import { BinaryNode } from '../WABinary';
+import { ILogger } from './logger';
 export declare const NO_MESSAGE_FOUND_ERROR_TEXT = "Message absent from node";
 export declare const MISSING_KEYS_ERROR_TEXT = "Key used already or never filled";
 export declare const NACK_REASONS: {

@@ -1,4 +1,4 @@
-import { proto } from '../../WAProto/index.mjs';
+import { proto } from '../../WAProto';
 /** LID (Link ID) to Phone Number mapping */
 export type LIDMapping = {
     lid: string;

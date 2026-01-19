@@ -1,5 +1,5 @@
-import type { SignalKeyStoreWithTransaction } from '../Types/index.js';
-import type { BinaryNode } from '../WABinary/index.js';
+import type { SignalKeyStoreWithTransaction } from '../Types';
+import type { BinaryNode } from '../WABinary';
 type TcTokenParams = {
     jid: string;
     baseContent?: BinaryNode[];

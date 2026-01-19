@@ -1,7 +1,6 @@
 {
   "name": "baileys",
   "version": "7.0.0-rc.9",
-  "type": "module",
   "description": "A WebSockets library for interacting with WhatsApp Web",
   "keywords": [
     "whatsapp",
@@ -15,36 +14,13 @@
   "author": "Rajeh Taher",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./lib/index.d.ts",
-      "import": "./lib/index.js",
-      "require": "./lib/index.js",
-      "default": "./lib/index.js"
-    },
-    "./*": "./*",
-    "./lib/*": {
-      "types": "./lib/*.d.ts",
-      "import": "./lib/*.js",
-      "require": "./lib/*.js",
-      "default": "./lib/*.js"
-    },
-    "./WAProto": {
-      "types": "./WAProto/index.d.ts",
-      "import": "./WAProto/index.mjs",
-      "require": "./WAProto/index.js",
-      "default": "./WAProto/index.js"
-    },
-    "./WAProto/*": "./WAProto/*",
-    "./package.json": "./package.json"
-  },
   "files": [
     "lib/*",
     "WAProto/*",
     "engine-requirements.js"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && tsc-esm-fix --target=lib",
+    "build": "tsc -p tsconfig.build.json",
     "build:all": "npm run build && typedoc",
     "build:docs": "typedoc",
     "build:tsc": "tsc -p tsconfig.build.json",

@@ -29,7 +29,7 @@
  * - `LOG_FORMAT=json|pretty` - Output format (default: json)
  */
 import type { Logger } from 'pino';
-import { createBaileysLogger } from './structured-logger.js';
+import { createBaileysLogger } from './structured-logger';
 /**
  * Check if structured logging is enabled
  */

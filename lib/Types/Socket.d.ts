@@ -1,11 +1,11 @@
 import type { Agent } from 'https';
 import type { URL } from 'url';
-import { proto } from '../../WAProto/index.mjs';
-import { ILogger } from '../Utils/logger.js';
-import { AuthenticationState, SignalAuthState, TransactionCapabilityOptions } from './Auth.js';
-import { GroupMetadata } from './GroupMetadata.js';
-import { MediaConnInfo } from './Message.js';
-import { LIDMapping, SignalRepository } from './Signal.js';
+import { proto } from '../../WAProto';
+import { ILogger } from '../Utils/logger';
+import { AuthenticationState, SignalAuthState, TransactionCapabilityOptions } from './Auth';
+import { GroupMetadata } from './GroupMetadata';
+import { MediaConnInfo } from './Message';
+import { LIDMapping, SignalRepository } from './Signal';
 /** Function type for fetching LID-PN mappings via USync */
 export type PnFromLIDUSyncFn = (jids: string[]) => Promise<LIDMapping[] | undefined>;
 export type WAVersion = [number, number, number];

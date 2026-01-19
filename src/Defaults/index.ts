@@ -1,9 +1,9 @@
-import { proto } from '../../WAProto/index.mjs'
+import { proto } from '../../WAProto'
 import { makeLibSignalRepository } from '../Signal/libsignal'
 import type { AuthenticationState, MediaType, SocketConfig, WAVersion } from '../Types'
 import { Browsers } from '../Utils/generics'
 import logger from '../Utils/logger'
-import baileysVersionJson from './baileys-version.json' with { type: 'json' }
+import baileysVersionJson from './baileys-version.json'
 const { version } = baileysVersionJson
 
 export const UNAUTHORIZED_CODES = [401, 403, 419]

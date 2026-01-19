@@ -1,10 +1,10 @@
 import { Boom } from '@hapi/boom';
 import { Readable, Transform } from 'stream';
 import { URL } from 'url';
-import { proto } from '../../WAProto/index.mjs';
-import type { DownloadableMessage, MediaConnInfo, MediaDecryptionKeyInfo, MediaType, SocketConfig, WAMediaUpload, WAMediaUploadFunction, WAMessageContent, WAMessageKey } from '../Types/index.js';
-import { type BinaryNode } from '../WABinary/index.js';
-import type { ILogger } from './logger.js';
+import { proto } from '../../WAProto';
+import type { DownloadableMessage, MediaConnInfo, MediaDecryptionKeyInfo, MediaType, SocketConfig, WAMediaUpload, WAMediaUploadFunction, WAMessageContent, WAMessageKey } from '../Types';
+import { type BinaryNode } from '../WABinary';
+import type { ILogger } from './logger';
 export declare const hkdfInfoKey: (type: MediaType) => string;
 export declare const getRawMediaUploadData: (media: WAMediaUpload, mediaType: MediaType, logger?: ILogger) => Promise<{
     filePath: string;

@@ -1,7 +1,7 @@
-import { proto } from '../../WAProto/index.mjs';
-import { KeyPair } from '../Types/index.js';
-import { BinaryNode } from '../WABinary/index.js';
-import { ILogger } from './logger.js';
+import { proto } from '../../WAProto';
+import { KeyPair } from '../Types';
+import { BinaryNode } from '../WABinary';
+import { ILogger } from './logger';
 export declare const makeNoiseHandler: ({ keyPair: { private: privateKey, public: publicKey }, NOISE_HEADER, logger, routingInfo }: {
     keyPair: KeyPair;
     NOISE_HEADER: Uint8Array;

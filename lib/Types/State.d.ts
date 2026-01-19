@@ -1,5 +1,5 @@
 import { Boom } from '@hapi/boom';
-import type { Contact } from './Contact.js';
+import type { Contact } from './Contact';
 export type WAConnectionState = 'open' | 'connecting' | 'close';
 /**
  * Sync state machine for better sync handling

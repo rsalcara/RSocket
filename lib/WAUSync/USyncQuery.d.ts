@@ -1,6 +1,6 @@
-import { USyncQueryProtocol } from '../Types/USync.js';
-import { BinaryNode } from '../WABinary/index.js';
-import { USyncUser } from './USyncUser.js';
+import { USyncQueryProtocol } from '../Types/USync';
+import { BinaryNode } from '../WABinary';
+import { USyncUser } from './USyncUser';
 export type USyncQueryResultList = {
     [protocol: string]: unknown;
     id: string;

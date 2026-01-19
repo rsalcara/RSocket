@@ -1,5 +1,5 @@
 import '../index.js'
-import { proto } from '../../WAProto/index.mjs'
+import { proto } from '../../WAProto'
 
 describe('proto serialization', () => {
 	it('handles string values in long fields gracefully', () => {

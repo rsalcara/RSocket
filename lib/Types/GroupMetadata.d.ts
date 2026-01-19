@@ -1,4 +1,4 @@
-import type { Contact } from './Contact.js';
+import type { Contact } from './Contact';
 export type GroupParticipant = Contact & {
     isAdmin?: boolean;
     isSuperAdmin?: boolean;

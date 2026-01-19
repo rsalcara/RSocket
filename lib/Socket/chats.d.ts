@@ -1,10 +1,10 @@
 import { Boom } from '@hapi/boom';
-import { proto } from '../../WAProto/index.mjs';
-import { BotListInfo, ChatModification, MessageUpsertType, SocketConfig, WABusinessProfile, WAMediaUpload, WAMessage, WAPatchCreate, WAPresence, WAPrivacyCallValue, WAPrivacyGroupAddValue, WAPrivacyMessagesValue, WAPrivacyOnlineValue, WAPrivacyValue, WAReadReceiptsValue } from '../Types/index.js';
-import { LabelActionBody } from '../Types/Label.js';
-import type { QuickReplyAction } from '../Types/Bussines.js';
-import { BinaryNode } from '../WABinary/index.js';
-import { USyncQuery } from '../WAUSync/index.js';
+import { proto } from '../../WAProto';
+import { BotListInfo, ChatModification, MessageUpsertType, SocketConfig, WABusinessProfile, WAMediaUpload, WAMessage, WAPatchCreate, WAPresence, WAPrivacyCallValue, WAPrivacyGroupAddValue, WAPrivacyMessagesValue, WAPrivacyOnlineValue, WAPrivacyValue, WAReadReceiptsValue } from '../Types';
+import { LabelActionBody } from '../Types/Label';
+import type { QuickReplyAction } from '../Types/Bussines';
+import { BinaryNode } from '../WABinary';
+import { USyncQuery } from '../WAUSync';
 export declare const makeChatsSocket: (config: SocketConfig) => {
     createCallLink: (type: "audio" | "video", event?: {
         startTime: number;
@@ -27,8 +27,8 @@ export declare const makeChatsSocket: (config: SocketConfig) => {
         lid: unknown;
     }[] | undefined>;
     fetchBlocklist: () => Promise<string[]>;
-    fetchStatus: (...jids: string[]) => Promise<import("../WAUSync/index.js").USyncQueryResultList[] | undefined>;
-    fetchDisappearingDuration: (...jids: string[]) => Promise<import("../WAUSync/index.js").USyncQueryResultList[] | undefined>;
+    fetchStatus: (...jids: string[]) => Promise<import("../WAUSync").USyncQueryResultList[] | undefined>;
+    fetchDisappearingDuration: (...jids: string[]) => Promise<import("../WAUSync").USyncQueryResultList[] | undefined>;
     updateProfilePicture: (jid: string, content: WAMediaUpload, dimensions?: {
         width: number;
         height: number;
@@ -64,11 +64,11 @@ export declare const makeChatsSocket: (config: SocketConfig) => {
     }[], star: boolean) => Promise<void>;
     addOrEditQuickReply: (quickReply: QuickReplyAction) => Promise<void>;
     removeQuickReply: (timestamp: string) => Promise<void>;
-    executeUSyncQuery: (usyncQuery: USyncQuery) => Promise<import("../WAUSync/index.js").USyncQueryResult | undefined>;
+    executeUSyncQuery: (usyncQuery: USyncQuery) => Promise<import("../WAUSync").USyncQueryResult | undefined>;
     type: "md";
-    ws: import("./Client/index.js").WebSocketClient;
-    ev: import("../Types/index.js").BaileysEventEmitter & {
-        process(handler: (events: Partial<import("../Types/index.js").BaileysEventMap>) => void | Promise<void>): () => void;
+    ws: import("./Client").WebSocketClient;
+    ev: import("../Types").BaileysEventEmitter & {
+        process(handler: (events: Partial<import("../Types").BaileysEventMap>) => void | Promise<void>): () => void;
         buffer(): void;
         createBufferedFunction<A extends any[], T>(work: (...args: A) => Promise<T>): (...args: A) => Promise<T>;
         flush(force?: boolean): boolean;
@@ -76,11 +76,11 @@ export declare const makeChatsSocket: (config: SocketConfig) => {
         destroy(): void;
     };
     authState: {
-        creds: import("../Types/index.js").AuthenticationCreds;
-        keys: import("../Types/index.js").SignalKeyStoreWithTransaction;
+        creds: import("../Types").AuthenticationCreds;
+        keys: import("../Types").SignalKeyStoreWithTransaction;
     };
-    signalRepository: import("../Types/index.js").SignalRepository;
-    user: import("../Types/index.js").Contact | undefined;
+    signalRepository: import("../Types").SignalRepository;
+    user: import("../Types").Contact | undefined;
     generateMessageTag: () => string;
     query: (node: BinaryNode, timeoutMs?: number) => Promise<any>;
     waitForMessage: <T>(msgId: string, timeoutMs?: number | undefined) => Promise<T | undefined>;
@@ -95,8 +95,8 @@ export declare const makeChatsSocket: (config: SocketConfig) => {
     digestKeyBundle: () => Promise<void>;
     rotateSignedPreKey: () => Promise<void>;
     requestPairingCode: (phoneNumber: string, customPairingCode?: string) => Promise<string>;
-    wamBuffer: import("../index.js").BinaryInfo;
-    waitForConnectionUpdate: (check: (u: Partial<import("../Types/index.js").ConnectionState>) => Promise<boolean | undefined>, timeoutMs?: number) => Promise<void>;
+    wamBuffer: import("..").BinaryInfo;
+    waitForConnectionUpdate: (check: (u: Partial<import("../Types").ConnectionState>) => Promise<boolean | undefined>, timeoutMs?: number) => Promise<void>;
     sendWAMBuffer: (wamBuffer: Buffer) => Promise<any>;
 };
 //# sourceMappingURL=chats.d.ts.map

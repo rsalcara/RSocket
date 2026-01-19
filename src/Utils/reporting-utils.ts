@@ -1,5 +1,5 @@
 import { createHmac } from 'crypto'
-import { proto } from '../../WAProto/index.mjs'
+import { proto } from '../../WAProto'
 import type { WAMessageContent, WAMessageKey } from '../Types'
 import type { BinaryNode } from '../WABinary'
 import { hkdf } from './crypto'

@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import { URL } from 'url';
-import { SocketConfig } from '../../Types/index.js';
+import { SocketConfig } from '../../Types';
 /**
  * Abstract base class for socket clients (WebSocket, TCP, etc.)
  *

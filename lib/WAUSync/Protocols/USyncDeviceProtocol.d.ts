@@ -1,5 +1,5 @@
-import { USyncQueryProtocol } from '../../Types/USync.js';
-import { BinaryNode } from '../../WABinary/index.js';
+import { USyncQueryProtocol } from '../../Types/USync';
+import { BinaryNode } from '../../WABinary';
 export type KeyIndexData = {
     timestamp: number;
     signedKeyIndex?: Uint8Array;

@@ -1,5 +1,5 @@
 import { Counter, Gauge, Histogram } from 'prom-client';
-import type { ILogger } from './logger.js';
+import type { ILogger } from './logger';
 /**
  * BaileysPrometheusMetrics - Production-grade Prometheus metrics exporter
  *
