@@ -22,10 +22,15 @@
       "require": "./lib/index.js",
       "default": "./lib/index.js"
     },
-    "./lib/*": "./lib/*.js",
-    "./lib/*.js": "./lib/*.js",
-    "./lib/*.d.ts": "./lib/*.d.ts",
+    "./*": "./*",
+    "./lib/*": {
+      "types": "./lib/*.d.ts",
+      "import": "./lib/*.js",
+      "require": "./lib/*.js",
+      "default": "./lib/*.js"
+    },
     "./WAProto": {
+      "types": "./WAProto/index.d.ts",
       "import": "./WAProto/index.mjs",
       "require": "./WAProto/index.js",
       "default": "./WAProto/index.js"
