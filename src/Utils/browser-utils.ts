@@ -1,5 +1,5 @@
 import { platform, release } from 'os'
-import { proto } from '../../WAProto/index.js'
+import { proto } from '../../WAProto/index.mjs'
 import type { BrowsersMap } from '../Types'
 
 const PLATFORM_MAP = {

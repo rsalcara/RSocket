@@ -1,6 +1,6 @@
 import NodeCache from '@cacheable/node-cache'
 import { Boom } from '@hapi/boom'
-import { proto } from '../../WAProto/index.js'
+import { proto } from '../../WAProto/index.mjs'
 import { DEFAULT_CACHE_TTLS, DEFAULT_CACHE_MAX_KEYS, WA_DEFAULT_EPHEMERAL } from '../Defaults'
 import ListType = proto.Message.ListMessage.ListType;
 import {

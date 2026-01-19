@@ -1,4 +1,4 @@
-import { proto } from '../../WAProto/index.js'
+import { proto } from '../../WAProto/index.mjs'
 import type {
 	AuthenticationCreds,
 	BaileysEventEmitter,

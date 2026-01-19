@@ -1,6 +1,6 @@
 import { Boom } from '@hapi/boom'
 import { createHash } from 'crypto'
-import { proto } from '../../WAProto/index.js'
+import { proto } from '../../WAProto/index.mjs'
 import {
 	KEY_BUNDLE_TYPE,
 	WA_ADV_ACCOUNT_SIG_PREFIX,
