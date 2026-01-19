@@ -47,6 +47,8 @@ import {
 	BinaryNode,
 	getBinaryNodeChild,
 	getBinaryNodeChildren,
+	isLidUser,
+	isPnUser,
 	jidDecode,
 	jidNormalizedUser,
 	reduceBinaryNodeToDictionary,
@@ -366,7 +368,78 @@ export const makeChatsSocket = (config: SocketConfig) => {
 		return getBinaryNodeChildren(listNode, 'item').map(n => n.attrs.jid)
 	}
 
-	const updateBlockStatus = async (jid: string, action: 'block' | 'unblock') => {
+	/**
+	 * Update block status for a user.
+	 *
+	 * PR #2265: WhatsApp now requires both LID and PN (phone number) JIDs for block/unblock.
+	 * This function automatically resolves the missing JID using the LID mapping store.
+	 *
+	 * @param jidOrPn - Can be either a LID (@lid) or phone number JID (@s.whatsapp.net)
+	 * @param action - 'block' or 'unblock'
+	 *
+	 * @example
+	 * // Block by phone number (will auto-lookup LID)
+	 * await sock.updateBlockStatus('5511999999999@s.whatsapp.net', 'block')
+	 *
+	 * // Block by LID (will auto-lookup PN)
+	 * await sock.updateBlockStatus('123456789@lid', 'block')
+	 */
+	const updateBlockStatus = async (jidOrPn: string, action: 'block' | 'unblock') => {
+		let lid: string | undefined
+		let pn: string | undefined
+
+		// Normalize the input JID
+		const normalizedJid = jidNormalizedUser(jidOrPn)
+
+		// Detect if we received a LID or PN and resolve the counterpart
+		if (isLidUser(normalizedJid)) {
+			// Received LID → lookup PN
+			lid = normalizedJid
+			try {
+				pn = (await signalRepository.lidMapping.getPNForLID(lid)) ?? undefined
+				if (!pn) {
+					logger.warn({ lid }, 'updateBlockStatus: No PN found for LID, using LID only')
+				}
+			} catch (err) {
+				logger.warn({ err, lid }, 'updateBlockStatus: Failed to lookup PN for LID')
+			}
+		} else if (isPnUser(normalizedJid)) {
+			// Received PN → lookup LID
+			pn = normalizedJid
+			try {
+				lid = (await signalRepository.lidMapping.getLIDForPN(pn)) ?? undefined
+				if (!lid) {
+					logger.warn({ pn }, 'updateBlockStatus: No LID found for PN, using PN only')
+				}
+			} catch (err) {
+				logger.warn({ err, pn }, 'updateBlockStatus: Failed to lookup LID for PN')
+			}
+		} else {
+			// Unknown JID type, try to use as-is
+			logger.warn({ jid: normalizedJid }, 'updateBlockStatus: Unknown JID type, using as-is')
+			pn = normalizedJid
+		}
+
+		// Build participant attributes based on what we have
+		const participantAttrs: Record<string, string> = {}
+
+		if (lid) {
+			participantAttrs.jid = lid
+		}
+		if (pn) {
+			participantAttrs.pn_jid = pn
+		}
+
+		// Fallback: if we have neither, use the original JID
+		if (!lid && !pn) {
+			participantAttrs.jid = normalizedJid
+		}
+
+		logger.debug(
+			{ lid, pn, action, participantAttrs },
+			'updateBlockStatus: Sending block request with LID and PN'
+		)
+
 		await query({
 			tag: 'iq',
 			attrs: {
@@ -376,14 +449,19 @@ export const makeChatsSocket = (config: SocketConfig) => {
 			},
 			content: [
 				{
-					tag: 'item',
-					attrs: {
-						action,
-						jid
-					}
+					tag: action,
+					attrs: {},
+					content: [
+						{
+							tag: 'item',
+							attrs: participantAttrs
+						}
+					]
 				}
 			]
 		})
+
+		logger.info({ lid, pn, action }, 'updateBlockStatus: Block status updated successfully')
 	}
 
 	const getBusinessProfile = async (jid: string): Promise<WABusinessProfile | void> => {
