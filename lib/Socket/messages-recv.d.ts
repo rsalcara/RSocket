@@ -1,6 +1,6 @@
 import { Boom } from '@hapi/boom';
 import Long from 'long';
-import { proto } from '../../WAProto';
+import { proto } from '../../WAProto/index.js';
 import type { MessageReceiptType, MessageRelayOptions, SocketConfig, WAMessage, WAMessageKey, WAPresence } from '../Types/index.js';
 import { BinaryNode } from '../WABinary/index.js';
 export declare const makeMessagesRecvSocket: (config: SocketConfig) => {
