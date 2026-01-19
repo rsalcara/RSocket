@@ -1,6 +1,6 @@
-import { proto } from '../../WAProto/index.mjs';
-import type { BaileysEventEmitter, BaileysEventMap, BrowsersMap, ConnectionState, WACallUpdateType, WAMessageKey, WAVersion } from '../Types/index.js';
-import { type BinaryNode } from '../WABinary/index.js';
+import { proto } from '../../WAProto';
+import type { BaileysEventEmitter, BaileysEventMap, BrowsersMap, ConnectionState, WACallUpdateType, WAMessageKey, WAVersion } from '../Types';
+import { type BinaryNode } from '../WABinary';
 export declare const Browsers: BrowsersMap;
 export declare const getPlatformId: (browser: string) => any;
 export declare const BufferJSON: {

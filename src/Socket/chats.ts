@@ -1,6 +1,6 @@
 import NodeCache from '@cacheable/node-cache'
 import { Boom } from '@hapi/boom'
-import { proto } from '../../WAProto/index.mjs'
+import { proto } from '../../WAProto'
 import { DEFAULT_CACHE_TTLS, DEFAULT_CACHE_MAX_KEYS, PROCESSABLE_HISTORY_TYPES } from '../Defaults'
 import {
 	ALL_WA_PATCH_NAMES,

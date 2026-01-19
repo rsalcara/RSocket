@@ -1,4 +1,4 @@
-import { CiphertextMessage } from './ciphertext-message.js';
+import { CiphertextMessage } from './ciphertext-message';
 export declare class SenderKeyMessage extends CiphertextMessage {
     private readonly SIGNATURE_LENGTH;
     private readonly messageVersion;

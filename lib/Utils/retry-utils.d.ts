@@ -1,4 +1,4 @@
-import type { SocketConfig } from '../Types/index.js';
+import type { SocketConfig } from '../Types';
 /**
  * Calculates the backoff delay with exponential backoff and optional jitter for retry logic.
  *

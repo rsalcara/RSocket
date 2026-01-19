@@ -1,6 +1,6 @@
-import type { proto } from '../../WAProto/index.mjs';
-import type { Contact } from './Contact.js';
-import type { MinimalMessage } from './Message.js';
+import type { proto } from '../../WAProto';
+import type { Contact } from './Contact';
+import type { MinimalMessage } from './Message';
 export type KeyPair = {
     public: Uint8Array;
     private: Uint8Array;

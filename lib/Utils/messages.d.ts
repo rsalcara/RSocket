@@ -1,9 +1,9 @@
 import { type Transform } from 'stream';
-import { proto } from '../../WAProto/index.mjs';
-import type { AnyMediaMessageContent, AnyMessageContent, MessageContentGenerationOptions, MessageGenerationOptions, MessageGenerationOptionsFromContent, MessageUserReceipt, WAMessage, WAMessageContent, WAMessageKey } from '../Types/index.js';
-import { WAProto } from '../Types/index.js';
-import type { ILogger } from './logger.js';
-import { type MediaDownloadOptions } from './messages-media.js';
+import { proto } from '../../WAProto';
+import type { AnyMediaMessageContent, AnyMessageContent, MessageContentGenerationOptions, MessageGenerationOptions, MessageGenerationOptionsFromContent, MessageUserReceipt, WAMessage, WAMessageContent, WAMessageKey } from '../Types';
+import { WAProto } from '../Types';
+import type { ILogger } from './logger';
+import { type MediaDownloadOptions } from './messages-media';
 type ExtractByKey<T, K extends PropertyKey> = T extends Record<K, any> ? T : never;
 /**
  * Uses a regex to test whether the string contains a URL, and returns the URL if it does.
@@ -11,7 +11,7 @@ type ExtractByKey<T, K extends PropertyKey> = T extends Record<K, any> ? T : nev
  * @returns the URL, eg. https://google.com
  */
 export declare const extractUrlFromText: (text: string) => string | undefined;
-export declare const generateLinkPreviewIfRequired: (text: string, getUrlInfo: MessageGenerationOptions["getUrlInfo"], logger: MessageGenerationOptions["logger"]) => Promise<import("../Types/index.js").WAUrlInfo | undefined>;
+export declare const generateLinkPreviewIfRequired: (text: string, getUrlInfo: MessageGenerationOptions["getUrlInfo"], logger: MessageGenerationOptions["logger"]) => Promise<import("../Types").WAUrlInfo | undefined>;
 /**
  * Type-safe property check helper (upstream improvement)
  * Checks if a message has a non-nullish property

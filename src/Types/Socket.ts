@@ -1,6 +1,6 @@
 import type { Agent } from 'https'
 import type { URL } from 'url'
-import { proto } from '../../WAProto/index.mjs'
+import { proto } from '../../WAProto'
 import { ILogger } from '../Utils/logger'
 import { AuthenticationState, SignalAuthState, TransactionCapabilityOptions } from './Auth'
 import { GroupMetadata } from './GroupMetadata'

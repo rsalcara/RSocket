@@ -1,7 +1,7 @@
-import { proto } from '../../WAProto/index.mjs';
-import { BaileysEventEmitter, ChatModification, ChatMutation, Contact, InitialAppStateSyncOptions, LTHashState, WAPatchCreate, WAPatchName } from '../Types/index.js';
-import { BinaryNode } from '../WABinary/index.js';
-import { ILogger } from './logger.js';
+import { proto } from '../../WAProto';
+import { BaileysEventEmitter, ChatModification, ChatMutation, Contact, InitialAppStateSyncOptions, LTHashState, WAPatchCreate, WAPatchName } from '../Types';
+import { BinaryNode } from '../WABinary';
+import { ILogger } from './logger';
 type FetchAppStateSyncKey = (keyId: string) => Promise<proto.Message.IAppStateSyncKeyData | null | undefined>;
 export type ChatMutationMap = {
     [index: string]: ChatMutation;

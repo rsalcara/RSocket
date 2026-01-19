@@ -1,4 +1,4 @@
-import { EventInputType } from './constants.js';
+import { EventInputType } from './constants';
 export declare class BinaryInfo {
     protocolVersion: number;
     sequence: number;

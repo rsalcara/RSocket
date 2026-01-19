@@ -1,5 +1,5 @@
-import { proto } from '../../WAProto/index.mjs';
-import { Chat, Contact } from '../Types/index.js';
+import { proto } from '../../WAProto';
+import { Chat, Contact } from '../Types';
 export declare const downloadHistory: (msg: proto.Message.IHistorySyncNotification, options: RequestInit) => Promise<proto.HistorySync>;
 export declare const processHistoryMessage: (item: proto.IHistorySync) => {
     chats: Chat[];
