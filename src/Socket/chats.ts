@@ -443,7 +443,7 @@ export const makeChatsSocket = (config: SocketConfig) => {
 
 		logger.info(
 			{ lid, pn, action },
-			`[BAILEYS-LID] 🔄 updateBlockStatus: ${action === 'block' ? '🚫' : '✅'} ${action}ing user`
+			`[BAILEYS-LID] 🔄 updateBlockStatus: ${action === 'block' ? '🚫 blocking' : '✅ unblocking'} user`
 		)
 
 		await query({
