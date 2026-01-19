@@ -29,7 +29,7 @@
  * - `LOG_FORMAT=json|pretty` - Output format (default: json)
  */
 import type { Logger } from 'pino';
-import { createBaileysLogger } from './structured-logger';
+import { createBaileysLogger } from './structured-logger.js';
 /**
  * Check if structured logging is enabled
  */
@@ -135,3 +135,4 @@ export declare const legacyLoggerAdapter: {
  * Type guard to check if logger is structured
  */
 export declare function isStructuredLogger(logger: any): logger is ReturnType<typeof createBaileysLogger>;
+//# sourceMappingURL=logger-adapter.d.ts.map

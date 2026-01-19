@@ -1,7 +1,9 @@
 import { proto } from '../../WAProto';
-import type { MediaType, SocketConfig } from '../Types';
+import type { MediaType, SocketConfig } from '../Types/index.js';
 export declare const UNAUTHORIZED_CODES: number[];
 export declare const DEFAULT_ORIGIN = "https://web.whatsapp.com";
+export declare const CALL_VIDEO_PREFIX = "https://call.whatsapp.com/video/";
+export declare const CALL_AUDIO_PREFIX = "https://call.whatsapp.com/voice/";
 export declare const DEF_CALLBACK_PREFIX = "CB:";
 export declare const DEF_TAG_PREFIX = "TAG:";
 export declare const PHONE_CONNECTION_CB = "CB:Pong";
@@ -18,6 +20,8 @@ export declare const NOISE_WA_HEADER: Buffer<ArrayBuffer>;
 export declare const URL_REGEX: RegExp;
 export declare const WA_CERT_DETAILS: {
     SERIAL: number;
+    ISSUER: string;
+    PUBLIC_KEY: Buffer<ArrayBuffer>;
 };
 export declare const PROCESSABLE_HISTORY_TYPES: proto.Message.HistorySyncNotification.HistorySyncType[];
 export declare const DEFAULT_CONNECTION_CONFIG: SocketConfig;
@@ -43,6 +47,7 @@ export declare const MEDIA_HKDF_KEY_MAPPING: {
     'product-catalog-image': string;
     'payment-bg-image': string;
     ptv: string;
+    'biz-cover-photo': string;
 };
 export declare const MEDIA_KEYS: MediaType[];
 export declare const MIN_PREKEY_COUNT = 5;
@@ -97,3 +102,4 @@ export declare const DEFAULT_CACHE_MAX_KEYS: {
     LID_PER_SOCKET: number;
     LID_GLOBAL: number;
 };
+//# sourceMappingURL=index.d.ts.map

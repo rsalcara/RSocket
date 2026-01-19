@@ -1,9 +1,11 @@
 export interface Contact {
-    /** ID either in lid or jid format **/
+    /** ID either in lid or jid format (preferred) **/
     id: string;
-    /** ID in Lid (anonymous) format (@lid) **/
+    /** ID in LID format (@lid) **/
     lid?: string;
-    /** ID in Phone Number format (@s.whatsapp.net)  **/
+    /** ID in PN format (@s.whatsapp.net) - upstream naming **/
+    phoneNumber?: string;
+    /** @deprecated Use phoneNumber instead. ID in Phone Number format (@s.whatsapp.net) **/
     jid?: string;
     /** name of the contact, you have saved on your WA */
     name?: string;
@@ -21,3 +23,4 @@ export interface Contact {
     imgUrl?: string | null;
     status?: string;
 }
+//# sourceMappingURL=Contact.d.ts.map

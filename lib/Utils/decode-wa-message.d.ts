@@ -1,7 +1,6 @@
-import { proto } from '../../WAProto';
-import { SignalRepository } from '../Types';
-import { BinaryNode } from '../WABinary';
-import { ILogger } from './logger';
+import { SignalRepository, WAMessage } from '../Types/index.js';
+import { BinaryNode } from '../WABinary/index.js';
+import { ILogger } from './logger.js';
 export declare const NO_MESSAGE_FOUND_ERROR_TEXT = "Message absent from node";
 export declare const MISSING_KEYS_ERROR_TEXT = "Key used already or never filled";
 export declare const NACK_REASONS: {
@@ -19,6 +18,15 @@ export declare const NACK_REASONS: {
     UnsupportedLIDGroup: number;
     DBOperationFailed: number;
 };
+export declare const DECRYPTION_RETRY_CONFIG: {
+    maxRetries: number;
+    baseDelayMs: number;
+    sessionRecordErrors: string[];
+};
+/**
+ * Get the JID to use for decryption - resolves PN to LID if mapping exists
+ */
+export declare const getDecryptionJid: (sender: string, repository: SignalRepository) => Promise<string>;
 /**
  * Extract addressing context from a message stanza
  * Determines if message is LID or PN addressed and extracts alternate identifiers
@@ -33,13 +41,14 @@ export declare const extractAddressingContext: (stanza: BinaryNode) => {
  * @note this will only parse the message, not decrypt it
  */
 export declare function decodeMessageNode(stanza: BinaryNode, meId: string, meLid: string): {
-    fullMessage: proto.IWebMessageInfo;
+    fullMessage: WAMessage;
     author: string;
     sender: string;
 };
 export declare const decryptMessageNode: (stanza: BinaryNode, meId: string, meLid: string, repository: SignalRepository, logger: ILogger) => {
-    fullMessage: proto.IWebMessageInfo;
+    fullMessage: WAMessage;
     category: string;
     author: string;
     decrypt(): Promise<void>;
 };
+//# sourceMappingURL=decode-wa-message.d.ts.map

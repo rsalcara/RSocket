@@ -195,3 +195,4 @@ export declare function createBaileysLogger(config: BaileysLoggerConfig): {
  * Type for Baileys logger instance
  */
 export type BaileysLogger = ReturnType<typeof createBaileysLogger>;
+//# sourceMappingURL=structured-logger.d.ts.map

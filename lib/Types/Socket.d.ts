@@ -1,25 +1,32 @@
-import { AxiosRequestConfig } from 'axios';
 import type { Agent } from 'https';
 import type { URL } from 'url';
 import { proto } from '../../WAProto';
-import { ILogger } from '../Utils/logger';
-import { AuthenticationState, SignalAuthState, TransactionCapabilityOptions } from './Auth';
-import { GroupMetadata } from './GroupMetadata';
-import { MediaConnInfo } from './Message';
-import { LIDMapping, SignalRepository } from './Signal';
+import { ILogger } from '../Utils/logger.js';
+import { AuthenticationState, SignalAuthState, TransactionCapabilityOptions } from './Auth.js';
+import { GroupMetadata } from './GroupMetadata.js';
+import { MediaConnInfo } from './Message.js';
+import { LIDMapping, SignalRepository } from './Signal.js';
 /** Function type for fetching LID-PN mappings via USync */
 export type PnFromLIDUSyncFn = (jids: string[]) => Promise<LIDMapping[] | undefined>;
 export type WAVersion = [number, number, number];
 export type WABrowserDescription = [string, string, string];
 export type CacheStore = {
     /** get a cached key and change the stats */
-    get<T>(key: string): T | undefined;
+    get<T>(key: string): Promise<T> | T | undefined;
     /** set a key in the cache */
-    set<T>(key: string, value: T): void;
+    set<T>(key: string, value: T): Promise<void> | void | number | boolean;
     /** delete a key from the cache */
-    del(key: string): void;
+    del(key: string): void | Promise<void> | number | boolean;
     /** flush all data */
-    flushAll(): void;
+    flushAll(): void | Promise<void>;
+};
+export type PossiblyExtendedCacheStore = CacheStore & {
+    mget?: <T>(keys: string[]) => Promise<Record<string, T | undefined>>;
+    mset?: <T>(entries: {
+        key: string;
+        value: T;
+    }[]) => Promise<void> | void | number | boolean;
+    mdel?: (keys: string[]) => void | Promise<void> | number | boolean;
 };
 export type PatchedMessageWithRecipientJID = proto.IMessage & {
     recipientJid?: string;
@@ -59,6 +66,8 @@ export type SocketConfig = {
     retryRequestDelayMs: number;
     /** max retry count */
     maxMsgRetryCount: number;
+    /** enable recent message cache for retries */
+    enableRecentMessageCache?: boolean;
     /**
      * Array of delays in milliseconds for exponential backoff on message decrypt retries.
      * Each element represents the delay for the corresponding retry attempt.
@@ -99,8 +108,8 @@ export type SocketConfig = {
      * map to store the retry counts for failed messages;
      * used to determine whether to retry a message or not */
     msgRetryCounterCache?: CacheStore;
-    /** provide a cache to store a user's device list */
-    userDevicesCache?: CacheStore;
+    /** provide a cache to store a user's device list (supports batch operations) */
+    userDevicesCache?: PossiblyExtendedCacheStore;
     /** cache to store call offers */
     callOfferCache?: CacheStore;
     /** cache to track placeholder resends */
@@ -145,8 +154,8 @@ export type SocketConfig = {
      * Set to 0 for unlimited (NOT RECOMMENDED - causes memory leaks)
      */
     maxSocketClientListeners?: number;
-    /** options for axios */
-    options: AxiosRequestConfig<{}>;
+    /** options for fetch requests */
+    options: RequestInit;
     /**
      * fetch a message from your store
      * implement this so that messages failed to send
@@ -156,4 +165,11 @@ export type SocketConfig = {
     /** cached group metadata, use to prevent redundant requests to WA & speed up msg sending */
     cachedGroupMetadata: (jid: string) => Promise<GroupMetadata | undefined>;
     makeSignalRepository: (auth: SignalAuthState, logger?: ILogger, pnFromLIDUSync?: PnFromLIDUSyncFn) => SignalRepository;
+    /**
+     * Enable automatic session recreation when decryption fails repeatedly
+     * This can help recover from corrupted sessions
+     * @default false
+     */
+    enableAutoSessionRecreation?: boolean;
 };
+//# sourceMappingURL=Socket.d.ts.map
