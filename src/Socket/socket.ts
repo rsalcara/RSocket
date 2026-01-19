@@ -144,34 +144,6 @@ export const makeSocket = (config: SocketConfig) => {
 	// add transaction capability
 	const keys = addTransactionCapability(authState.keys, logger, transactionOpts)
 
-	// Function to fetch LID-PN mappings via USync (needed for signalRepository)
-	const pnFromLIDUSync = async (jids: string[]): Promise<LIDMapping[] | undefined> => {
-		const usyncQuery = new USyncQuery().withLIDProtocol().withContext('background')
-
-		for (const jid of jids) {
-			if (isLidUser(jid)) {
-				logger?.warn('LID user found in LID fetch call')
-				continue
-			} else {
-				usyncQuery.withUser(new USyncUser().withId(jid))
-			}
-		}
-
-		if (usyncQuery.users.length === 0) {
-			return [] // return early without forcing an empty query
-		}
-
-		const results = await executeUSyncQuery(usyncQuery)
-
-		if (results) {
-			return results.list.filter(a => !!a.lid).map(({ lid, id }) => ({ pn: id, lid: lid as string }))
-		}
-
-		return []
-	}
-
-	const signalRepository = makeSignalRepository({ creds, keys }, logger, pnFromLIDUSync)
-
 	let lastDateRecv: Date
 	let epoch = 1
 	let keepAliveReq: NodeJS.Timeout
@@ -439,6 +411,34 @@ export const makeSocket = (config: SocketConfig) => {
 			return results.list.filter(a => !!a.contact).map(({ contact, id }) => ({ jid: id, exists: contact as boolean }))
 		}
 	}
+
+	// Function to fetch LID-PN mappings via USync (needed for signalRepository)
+	const pnFromLIDUSync = async (jids: string[]): Promise<LIDMapping[] | undefined> => {
+		const usyncQuery = new USyncQuery().withLIDProtocol().withContext('background')
+
+		for (const jid of jids) {
+			if (isLidUser(jid)) {
+				logger?.warn('LID user found in LID fetch call')
+				continue
+			} else {
+				usyncQuery.withUser(new USyncUser().withId(jid))
+			}
+		}
+
+		if (usyncQuery.users.length === 0) {
+			return [] // return early without forcing an empty query
+		}
+
+		const results = await executeUSyncQuery(usyncQuery)
+
+		if (results) {
+			return results.list.filter(a => !!a.lid).map(({ lid, id }) => ({ pn: id, lid: lid as string }))
+		}
+
+		return []
+	}
+
+	const signalRepository = makeSignalRepository({ creds, keys }, logger, pnFromLIDUSync)
 
 	/** connection handshake */
 	const validateConnection = async () => {
