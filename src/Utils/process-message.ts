@@ -42,10 +42,10 @@ type ProcessMessageContext = {
 	ev: BaileysEventEmitter
 	logger?: ILogger
 	options: RequestInit
-	/** Signal repository for LID mapping (optional, for LID migration support) */
-	signalRepository?: SignalRepository
-	/** Function to get message by key (optional, for event response decryption) */
-	getMessage?: SocketConfig['getMessage']
+	/** Signal repository for LID mapping (required for LID migration support) */
+	signalRepository: SignalRepository
+	/** Function to get message by key (required for event response decryption) */
+	getMessage: SocketConfig['getMessage']
 }
 
 const REAL_MSG_STUB_TYPES = new Set([
@@ -387,23 +387,21 @@ const processMessage = async (
 				}
 				break
 			case proto.Message.ProtocolMessage.Type.LID_MIGRATION_MAPPING_SYNC:
-				if (signalRepository) {
-					const encodedPayload = protocolMsg.lidMigrationMappingSyncMessage?.encodedMappingPayload
-					if (encodedPayload) {
-						const { pnToLidMappings, chatDbMigrationTimestamp } =
-							proto.LIDMigrationMappingSyncPayload.decode(encodedPayload)
-						logger?.debug({ pnToLidMappings, chatDbMigrationTimestamp }, 'got lid mappings and chat db migration timestamp')
-						const pairs: LIDMapping[] = []
-						for (const { pn, latestLid, assignedLid } of pnToLidMappings) {
-							const lid = latestLid || assignedLid
-							pairs.push({ lid: `${lid}@lid`, pn: `${pn}@s.whatsapp.net` })
-						}
+				const encodedPayload = protocolMsg.lidMigrationMappingSyncMessage?.encodedMappingPayload
+				if (encodedPayload) {
+					const { pnToLidMappings, chatDbMigrationTimestamp } =
+						proto.LIDMigrationMappingSyncPayload.decode(encodedPayload)
+					logger?.debug({ pnToLidMappings, chatDbMigrationTimestamp }, 'got lid mappings and chat db migration timestamp')
+					const pairs: LIDMapping[] = []
+					for (const { pn, latestLid, assignedLid } of pnToLidMappings) {
+						const lid = latestLid || assignedLid
+						pairs.push({ lid: `${lid}@lid`, pn: `${pn}@s.whatsapp.net` })
+					}
 
-						await signalRepository.lidMapping.storeLIDPNMappings(pairs)
-						if (pairs.length) {
-							for (const { pn, lid } of pairs) {
-								await signalRepository.migrateSession(pn, lid)
-							}
+					await signalRepository.lidMapping.storeLIDPNMappings(pairs)
+					if (pairs.length) {
+						for (const { pn, lid } of pairs) {
+							await signalRepository.migrateSession(pn, lid)
 						}
 					}
 				}
@@ -420,7 +418,7 @@ const processMessage = async (
 				key: content.reactionMessage?.key!
 			}
 		])
-	} else if (content?.encEventResponseMessage && getMessage && signalRepository) {
+	} else if (content?.encEventResponseMessage) {
 		const encEventResponse = content.encEventResponseMessage
 		const creationMsgKey = encEventResponse.eventCreationMessageKey!
 
