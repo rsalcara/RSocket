@@ -1,7 +1,7 @@
 import { Boom } from '@hapi/boom';
 import Long from 'long';
 import { proto } from '../../WAProto';
-import type { MessageReceiptType, MessageRelayOptions, SocketConfig, WAMessage, WAMessageKey, WAPresence } from '../Types';
+import type { ConnectionState, MessageReceiptType, MessageRelayOptions, SocketConfig, WAMessage, WAMessageKey, WAPresence } from '../Types';
 import { BinaryNode } from '../WABinary';
 export declare const makeMessagesRecvSocket: (config: SocketConfig) => {
     sendMessageAck: ({ tag, attrs, content }: BinaryNode, errorCode?: number) => Promise<void>;
@@ -10,6 +10,7 @@ export declare const makeMessagesRecvSocket: (config: SocketConfig) => {
     fetchMessageHistory: (count: number, oldestMsgKey: WAMessageKey, oldestMsgTimestamp: number | Long) => Promise<string>;
     requestPlaceholderResend: (messageKey: WAMessageKey) => Promise<string | undefined>;
     messageRetryManager: import("../Utils").MessageRetryManager | null;
+    cleanup: () => void;
     getPrivacyTokens: (jids: string[]) => Promise<any>;
     assertSessions: (jids: string[], force: boolean, lids?: string) => Promise<boolean>;
     relayMessage: (jid: string, message: proto.IMessage, { messageId: msgId, participant, additionalAttributes, additionalNodes, useUserDevicesCache, useCachedGroupMetadata, statusJidList, isretry }: MessageRelayOptions) => Promise<string>;
@@ -173,7 +174,7 @@ export declare const makeMessagesRecvSocket: (config: SocketConfig) => {
     rotateSignedPreKey: () => Promise<void>;
     requestPairingCode: (phoneNumber: string, customPairingCode?: string) => Promise<string>;
     wamBuffer: import("..").BinaryInfo;
-    waitForConnectionUpdate: (check: (u: Partial<import("../Types").ConnectionState>) => Promise<boolean | undefined>, timeoutMs?: number) => Promise<void>;
+    waitForConnectionUpdate: (check: (u: Partial<ConnectionState>) => Promise<boolean | undefined>, timeoutMs?: number) => Promise<void>;
     sendWAMBuffer: (wamBuffer: Buffer) => Promise<any>;
 };
 //# sourceMappingURL=messages-recv.d.ts.map

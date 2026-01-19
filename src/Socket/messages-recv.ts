@@ -5,6 +5,7 @@ import Long from 'long'
 import { proto } from '../../WAProto'
 import { DEFAULT_CACHE_TTLS, DEFAULT_CACHE_MAX_KEYS, KEY_BUNDLE_TYPE, MIN_PREKEY_COUNT } from '../Defaults'
 import type {
+	ConnectionState,
 	GroupParticipant,
 	MessageReceiptType,
 	MessageRelayOptions,
@@ -1456,8 +1457,23 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 
 		// Number of nodes to process before yielding to event loop
 		const BATCH_SIZE = 10
+		// Maximum offline nodes to store in memory (prevent unbounded growth) - PR #2273
+		const MAX_OFFLINE_NODES = 5000
+		// Remove 10% oldest nodes when limit is reached
+		const CLEANUP_PERCENTAGE = 0.1
 
 		const enqueue = (type: MessageType, node: BinaryNode) => {
+			// Check if we've exceeded the maximum offline nodes (PR #2273 - OOM prevention)
+			if (nodes.length >= MAX_OFFLINE_NODES) {
+				const removeCount = Math.floor(MAX_OFFLINE_NODES * CLEANUP_PERCENTAGE)
+				logger.warn(
+					{ currentSize: nodes.length, removing: removeCount, maxSize: MAX_OFFLINE_NODES },
+					'offline nodes queue exceeded limit, removing oldest entries'
+				)
+				// Remove oldest 10% of nodes
+				nodes.splice(0, removeCount)
+			}
+
 			nodes.push({ type, node })
 
 			if (isProcessing) {
@@ -1555,31 +1571,28 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		}
 	}
 
-	// recv a message
-	ws.on('CB:message', (node: BinaryNode) => {
+	// Named handlers for cleanup (PR #2273 - memory leak prevention)
+	const messageHandler = (node: BinaryNode) => {
 		processNode('message', node, 'processing message', handleMessage)
-	})
+	}
 
-	ws.on('CB:call', async (node: BinaryNode) => {
+	const callHandler = (node: BinaryNode) => {
 		processNode('call', node, 'handling call', handleCall)
-	})
+	}
 
-	ws.on('CB:receipt', node => {
+	const receiptHandler = (node: BinaryNode) => {
 		processNode('receipt', node, 'handling receipt', handleReceipt)
-	})
+	}
 
-	ws.on('CB:notification', async (node: BinaryNode) => {
+	const notificationHandler = (node: BinaryNode) => {
 		processNode('notification', node, 'handling notification', handleNotification)
-	})
+	}
 
-	ws.on('CB:ack,class:message', (node: BinaryNode) => {
+	const badAckHandler = (node: BinaryNode) => {
 		handleBadAck(node).catch(error => onUnexpectedError(error, 'handling bad ack'))
-	})
+	}
 
-	ws.on('CB:presence', handlePresenceUpdate)
-	ws.on('CB:chatstate', handlePresenceUpdate)
-
-	ev.on('call', ([call]) => {
+	const callEventHandler = ([call]: [WACallEvent]) => {
 		// missed call + group call notification message generation
 		if (call.status === 'timeout' || (call.status === 'offer' && call.isGroup)) {
 			const msg: proto.IWebMessageInfo = {
@@ -1605,14 +1618,54 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 			const protoMsg = proto.WebMessageInfo.fromObject(msg)
 			upsertMessage(protoMsg, call.offline ? 'append' : 'notify')
 		}
-	})
+	}
 
-	ev.on('connection.update', ({ isOnline }) => {
+	const connectionUpdateHandler = ({ isOnline }: Partial<ConnectionState>) => {
 		if (typeof isOnline !== 'undefined') {
 			sendActiveReceipts = isOnline
 			logger.trace(`sendActiveReceipts set to "${sendActiveReceipts}"`)
 		}
-	})
+	}
+
+	// Register WebSocket handlers
+	ws.on('CB:message', messageHandler)
+	ws.on('CB:call', callHandler)
+	ws.on('CB:receipt', receiptHandler)
+	ws.on('CB:notification', notificationHandler)
+	ws.on('CB:ack,class:message', badAckHandler)
+	ws.on('CB:presence', handlePresenceUpdate)
+	ws.on('CB:chatstate', handlePresenceUpdate)
+
+	// Register event emitter handlers
+	ev.on('call', callEventHandler)
+	ev.on('connection.update', connectionUpdateHandler)
+
+	/**
+	 * Cleanup function to remove event listeners and prevent memory leaks (PR #2273)
+	 * Should be called when the socket is being closed/destroyed
+	 */
+	const cleanup = () => {
+		// Remove WebSocket listeners
+		ws.off('CB:message', messageHandler)
+		ws.off('CB:call', callHandler)
+		ws.off('CB:receipt', receiptHandler)
+		ws.off('CB:notification', notificationHandler)
+		ws.off('CB:ack,class:message', badAckHandler)
+		ws.off('CB:presence', handlePresenceUpdate)
+		ws.off('CB:chatstate', handlePresenceUpdate)
+
+		// Remove event emitter listeners
+		ev.off('call', callEventHandler)
+		ev.off('connection.update', connectionUpdateHandler)
+
+		// Clean up caches
+		msgRetryCache.flushAll()
+		callOfferCache.flushAll()
+		placeholderResendCache.flushAll()
+		identityAssertDebounce.flushAll()
+
+		logger.debug('messages-recv event listeners and caches cleaned up')
+	}
 
 	return {
 		...sock,
@@ -1621,6 +1674,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		rejectCall,
 		fetchMessageHistory,
 		requestPlaceholderResend,
-		messageRetryManager
+		messageRetryManager,
+		cleanup // Export cleanup function (PR #2273 - memory leak prevention)
 	}
 }

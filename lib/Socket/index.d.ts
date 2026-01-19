@@ -30,6 +30,7 @@ declare const makeWASocket: (config: UserFacingSocketConfig) => {
     fetchMessageHistory: (count: number, oldestMsgKey: import("../Types").WAMessageKey, oldestMsgTimestamp: number | import("long").default) => Promise<string>;
     requestPlaceholderResend: (messageKey: import("../Types").WAMessageKey) => Promise<string | undefined>;
     messageRetryManager: import("..").MessageRetryManager | null;
+    cleanup: () => void;
     getPrivacyTokens: (jids: string[]) => Promise<any>;
     assertSessions: (jids: string[], force: boolean, lids?: string) => Promise<boolean>;
     relayMessage: (jid: string, message: import("../Types").WAProto.IMessage, { messageId: msgId, participant, additionalAttributes, additionalNodes, useUserDevicesCache, useCachedGroupMetadata, statusJidList, isretry }: import("../Types").MessageRelayOptions) => Promise<string>;
@@ -245,6 +246,7 @@ export declare const makeWASocketAsync: (config: UserFacingSocketConfig) => Prom
     fetchMessageHistory: (count: number, oldestMsgKey: import("../Types").WAMessageKey, oldestMsgTimestamp: number | import("long").default) => Promise<string>;
     requestPlaceholderResend: (messageKey: import("../Types").WAMessageKey) => Promise<string | undefined>;
     messageRetryManager: import("..").MessageRetryManager | null;
+    cleanup: () => void;
     getPrivacyTokens: (jids: string[]) => Promise<any>;
     assertSessions: (jids: string[], force: boolean, lids?: string) => Promise<boolean>;
     relayMessage: (jid: string, message: import("../Types").WAProto.IMessage, { messageId: msgId, participant, additionalAttributes, additionalNodes, useUserDevicesCache, useCachedGroupMetadata, statusJidList, isretry }: import("../Types").MessageRelayOptions) => Promise<string>;
