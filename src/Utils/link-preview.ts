@@ -1,4 +1,3 @@
-import { AxiosRequestConfig } from 'axios'
 import { WAMediaUploadFunction, WAUrlInfo } from '../Types'
 import { ILogger } from './logger'
 import { prepareWAMessageMedia } from './messages'
@@ -19,7 +18,7 @@ export type URLGenerationOptions = {
 		/** Timeout in ms */
 		timeout: number
 		proxyUrl?: string
-		headers?: AxiosRequestConfig<{}>['headers']
+		headers?: RequestInit['headers']
 	}
 	uploadImage?: WAMediaUploadFunction
 	logger?: ILogger

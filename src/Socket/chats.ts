@@ -67,7 +67,7 @@ export const makeChatsSocket = (config: SocketConfig) => {
 		shouldSyncHistoryMessage
 	} = config
 	const sock = makeUSyncSocket(config)
-	const { ev, ws, authState, generateMessageTag, sendNode, query, onUnexpectedError } = sock
+	const { ev, ws, authState, signalRepository, generateMessageTag, sendNode, query, onUnexpectedError } = sock
 
 	let privacySettings: { [_: string]: string } | undefined
 
@@ -1096,7 +1096,9 @@ export const makeChatsSocket = (config: SocketConfig) => {
 				creds: authState.creds,
 				keyStore: authState.keys,
 				logger,
-				options: config.options
+				options: config.options,
+				signalRepository,
+				getMessage: config.getMessage
 			})
 		])
 
