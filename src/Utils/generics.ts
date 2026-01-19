@@ -323,6 +323,76 @@ export const fetchLatestWaWebVersion = async (options: RequestInit = {}) => {
 	}
 }
 
+/**
+ * Cached version storage for auto-fetch feature
+ * Prevents hitting WhatsApp's servers too often
+ */
+let cachedWaVersion: {
+	version: WAVersion
+	fetchedAt: number
+} | null = null
+
+/**
+ * Default cache TTL for fetched version (1 hour)
+ */
+const DEFAULT_VERSION_CACHE_TTL_MS = 60 * 60 * 1000
+
+/**
+ * Fetches the latest WhatsApp Web version with caching.
+ * Returns cached version if still valid, otherwise fetches fresh.
+ *
+ * @param cacheTTLMs - Cache duration in milliseconds (default: 1 hour)
+ * @param options - Fetch options
+ * @returns The latest version (from cache or freshly fetched)
+ */
+export const fetchLatestWaWebVersionCached = async (
+	cacheTTLMs: number = DEFAULT_VERSION_CACHE_TTL_MS,
+	options: RequestInit = {}
+): Promise<{ version: WAVersion; isLatest: boolean; fromCache?: boolean; error?: unknown }> => {
+	const now = Date.now()
+
+	// Return cached version if still valid
+	if (cachedWaVersion && (now - cachedWaVersion.fetchedAt) < cacheTTLMs) {
+		return {
+			version: cachedWaVersion.version,
+			isLatest: true,
+			fromCache: true
+		}
+	}
+
+	// Fetch fresh version
+	const result = await fetchLatestWaWebVersion(options)
+
+	// Cache the result if successful
+	if (result.isLatest) {
+		cachedWaVersion = {
+			version: result.version,
+			fetchedAt: now
+		}
+	}
+
+	return {
+		...result,
+		fromCache: false
+	}
+}
+
+/**
+ * Clears the cached WhatsApp Web version.
+ * Useful for forcing a fresh fetch on next connection.
+ */
+export const clearWaVersionCache = () => {
+	cachedWaVersion = null
+}
+
+/**
+ * Gets the current cached version info without fetching.
+ * Returns null if no cached version exists.
+ */
+export const getCachedWaVersion = () => {
+	return cachedWaVersion ? { ...cachedWaVersion } : null
+}
+
 /** unique message tag prefix for MD clients */
 export const generateMdTagPrefix = () => {
 	const bytes = randomBytes(4)
