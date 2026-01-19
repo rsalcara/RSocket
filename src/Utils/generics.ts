@@ -2,7 +2,7 @@ import { Boom } from '@hapi/boom'
 import { createHash, randomBytes } from 'crypto'
 import { platform, release } from 'os'
 import { proto } from '../../WAProto/index.js'
-import { version as baileysVersion } from '../Defaults/baileys-version.json'
+import { version as baileysVersion } from '../Defaults/baileys-version.json' with { type: 'json' }
 import type {
 	BaileysEventEmitter,
 	BaileysEventMap,
