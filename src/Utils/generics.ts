@@ -284,9 +284,17 @@ export const fetchLatestBaileysVersion = async (options: AxiosRequestConfig<{}> 
  */
 export const fetchLatestWaWebVersion = async (options: AxiosRequestConfig<{}>) => {
 	try {
+		// Anti-bot headers to bypass detection (upstream improvement)
+		const defaultHeaders = {
+			'sec-fetch-site': 'none',
+			'user-agent':
+				'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+		}
+
 		const { data } = await axios.get('https://web.whatsapp.com/sw.js', {
 			...options,
-			responseType: 'json'
+			headers: { ...defaultHeaders, ...options.headers },
+			responseType: 'text'
 		})
 
 		const regex = /\\?"client_revision\\?":\s*(\d+)/

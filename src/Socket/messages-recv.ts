@@ -72,7 +72,8 @@ import { extractGroupMetadata } from './groups'
 import { makeMessagesSocket } from './messages-send'
 
 export const makeMessagesRecvSocket = (config: SocketConfig) => {
-	const { logger, retryRequestDelayMs, maxMsgRetryCount, getMessage, shouldIgnoreJid, enableAutoSessionRecreation } = config
+	const { logger, retryRequestDelayMs, maxMsgRetryCount, getMessage, shouldIgnoreJid, enableAutoSessionRecreation } =
+		config
 	const sock = makeMessagesSocket(config)
 	const {
 		ev,
@@ -92,6 +93,11 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		sendPeerDataOperationMessage,
 		messageRetryManager
 	} = sock
+
+	// Use specialized mutexes if available, otherwise fallback to processingMutex (upstream improvement)
+	const messageMutex = (sock as any).messageMutex || processingMutex
+	const notificationMutex = (sock as any).notificationMutex || processingMutex
+	const receiptMutex = (sock as any).receiptMutex || processingMutex
 
 	/** this mutex ensures that each retryRequest will wait for the previous one to finish */
 	const retryMutex = makeMutex()
@@ -416,22 +422,89 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 	}
 
 	const sendRetryRequest = async (node: BinaryNode, forceIncludeKeys = false) => {
-		const { fullMessage, author } = decodeMessageNode(node, authState.creds.me!.id, authState.creds.me!.lid || '')
+		const { fullMessage } = decodeMessageNode(node, authState.creds.me!.id, authState.creds.me!.lid || '')
 		const { key: msgKey } = fullMessage
 		const msgId = msgKey.id!
 
-		const key = `${msgId}:${msgKey?.participant}`
-		let retryCount = msgRetryCache.get<number>(key) || 0
-		if (retryCount >= maxMsgRetryCount) {
-			logger.debug({ retryCount, msgId }, 'reached retry limit, clearing')
-			msgRetryCache.del(key)
-			return
+		// Use messageRetryManager if available (upstream improvement)
+		if (messageRetryManager) {
+			// Check if we've exceeded max retries using the new system
+			if (messageRetryManager.hasExceededMaxRetries(msgId)) {
+				logger.debug({ msgId }, 'reached retry limit with new retry manager, clearing')
+				messageRetryManager.markRetryFailed(msgId)
+				return
+			}
+
+			// Increment retry count using new system
+			const retryCount = messageRetryManager.incrementRetryCount(msgId)
+
+			// Use the new retry count for the rest of the logic
+			const key = `${msgId}:${msgKey?.participant}`
+			msgRetryCache.set(key, retryCount)
+		} else {
+			// Fallback to old system
+			const key = `${msgId}:${msgKey?.participant}`
+			let retryCount = msgRetryCache.get<number>(key) || 0
+			if (retryCount >= maxMsgRetryCount) {
+				logger.debug({ retryCount, msgId }, 'reached retry limit, clearing')
+				msgRetryCache.del(key)
+				return
+			}
+
+			retryCount += 1
+			msgRetryCache.set(key, retryCount)
 		}
 
-		retryCount += 1
-		msgRetryCache.set(key, retryCount)
+		const key = `${msgId}:${msgKey?.participant}`
+		const retryCount = msgRetryCache.get<number>(key) || 1
 
 		const { account, signedPreKey, signedIdentityKey: identityKey } = authState.creds
+		const fromJid = node.attrs.from!
+
+		// Check if we should recreate the session (upstream improvement)
+		let shouldRecreateSession = false
+		let recreateReason = ''
+
+		if (enableAutoSessionRecreation && messageRetryManager && retryCount > 1) {
+			try {
+				// Check if we have a session with this JID
+				const sessionId = signalRepository.jidToSignalProtocolAddress(fromJid)
+				const hasSession = await signalRepository.validateSession(fromJid)
+				const result = messageRetryManager.shouldRecreateSession(fromJid, hasSession.exists)
+				shouldRecreateSession = result.recreate
+				recreateReason = result.reason
+
+				if (shouldRecreateSession) {
+					logger.debug({ fromJid, retryCount, reason: recreateReason }, 'recreating session for retry')
+					// Delete existing session to force recreation
+					await authState.keys.set({ session: { [sessionId]: null } })
+					forceIncludeKeys = true
+				}
+			} catch (error) {
+				logger.warn({ error, fromJid }, 'failed to check session recreation')
+			}
+		}
+
+		// Schedule phone request if retry count is low (upstream improvement)
+		if (retryCount <= 2) {
+			if (messageRetryManager) {
+				// Schedule phone request with delay (like whatsmeow)
+				messageRetryManager.schedulePhoneRequest(msgId, async () => {
+					try {
+						const requestId = await requestPlaceholderResend(msgKey)
+						logger.debug(
+							`sendRetryRequest: requested placeholder resend (${requestId}) for message ${msgId} (scheduled)`
+						)
+					} catch (error) {
+						logger.warn({ error, msgId }, 'failed to send scheduled phone request')
+					}
+				})
+			} else {
+				// Fallback to immediate request
+				const reqId = await requestPlaceholderResend(msgKey)
+				logger.debug(`sendRetryRequest: requested placeholder resend for message ${reqId}`)
+			}
+		}
 
 		const deviceIdentity = encodeSignedDeviceIdentity(account!, true)
 		await authState.keys.transaction(async () => {
@@ -449,7 +522,9 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 							count: retryCount.toString(),
 							id: node.attrs.id!,
 							t: node.attrs.t!,
-							v: '1'
+							v: '1',
+							// ADD ERROR FIELD (upstream improvement)
+							error: '0'
 						}
 					},
 					{
@@ -468,8 +543,8 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 				receipt.attrs.participant = node.attrs.participant
 			}
 
-			if (retryCount <= 2 && forceIncludeKeys) {
-				await assertSessions([jidNormalizedUser(author)], true)
+			// Include keys when retry count > 1 or forced (upstream improvement)
+			if (retryCount > 1 || forceIncludeKeys || shouldRecreateSession) {
 				const { update, preKeys } = await getNextPreKeys(authState, 1)
 
 				const [keyId] = Object.keys(preKeys)
@@ -493,8 +568,8 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 
 			await sendNode(receipt)
 
-			logger.warn({ msgAttrs: node.attrs, retryCount }, 'sent retry receipt')
-		})
+			logger.info({ msgAttrs: node.attrs, retryCount }, 'sent retry receipt')
+		}, authState?.creds?.me?.id || 'sendRetryRequest')
 	}
 
 	const handleEncryptNotification = async (node: BinaryNode) => {
@@ -929,10 +1004,12 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 
 		try {
 			await Promise.all([
-				processingMutex.mutex(async () => {
+				receiptMutex.mutex(async () => {
 					const status = getStatusFromReceiptType(attrs.type)
 					if (
 						typeof status !== 'undefined' &&
+						// basically, we only want to know when a message from us has been delivered to/read by the other person
+						// or another device of ours has read some messages
 						(status >= proto.WebMessageInfo.Status.SERVER_ACK || !isNodeFromMe)
 					) {
 						if (isJidGroup(remoteJid) || isJidStatusBroadcast(remoteJid!)) {
@@ -962,21 +1039,26 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 					}
 
 					if (attrs.type === 'retry') {
+						// correctly set who is asking for the retry
 						key.participant = key.participant || attrs.from
 						const retryNode = getBinaryNodeChild(node, 'retry')
-						if (willSendMessageAgain(ids[0], key.participant!)) {
+						if (ids[0] && key.participant && willSendMessageAgain(ids[0], key.participant)) {
 							if (key.fromMe) {
 								try {
+									updateSendMessageAgainCount(ids[0], key.participant)
 									logger.debug({ attrs, key }, 'recv retry request')
 									await sendMessagesAgain(key, ids, retryNode!)
-								} catch (error) {
-									logger.error({ key, ids, trace: (error as Error).stack }, 'error in sending message again')
+								} catch (error: unknown) {
+									logger.error(
+										{ key, ids, trace: error instanceof Error ? error.stack : 'Unknown error' },
+										'error in sending message again'
+									)
 								}
 							} else {
-								logger.warn({ attrs, key }, 'recv retry for not fromMe message')
+								logger.info({ attrs, key }, 'recv retry for not fromMe message')
 							}
 						} else {
-							logger.warn({ attrs, key }, 'will not send message again, as sent too many times')
+							logger.info({ attrs, key }, 'will not send message again, as sent too many times')
 						}
 					}
 				})
@@ -996,21 +1078,24 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 
 		try {
 			await Promise.all([
-				processingMutex.mutex(async () => {
+				notificationMutex.mutex(async () => {
 					const msg = await processNotification(node)
 					if (msg) {
 						const fromMe = areJidsSameUser(node.attrs.participant || remoteJid, authState.creds.me!.id)
+						const { senderAlt: participantAlt, addressingMode } = extractAddressingContext(node)
 						msg.key = {
 							remoteJid,
 							fromMe,
 							participant: node.attrs.participant,
+							participantAlt,
+							addressingMode,
 							id: node.attrs.id,
 							...(msg.key || {})
 						}
 						msg.participant ??= node.attrs.participant
 						msg.messageTimestamp = +node.attrs.t!
 
-						const fullMsg = proto.WebMessageInfo.fromObject(msg)
+						const fullMsg = proto.WebMessageInfo.fromObject(msg) as WAMessage
 						await upsertMessage(fullMsg, 'append')
 					}
 				})
@@ -1023,16 +1108,15 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 	const handleMessage = async (node: BinaryNode) => {
 		if (shouldIgnoreJid(node.attrs.from!) && node.attrs.from !== S_WHATSAPP_NET) {
 			logger.debug({ key: node.attrs.key }, 'ignored message')
-			await sendMessageAck(node)
+			await sendMessageAck(node, NACK_REASONS.UnhandledError)
 			return
 		}
 
 		const encNode = getBinaryNodeChild(node, 'enc')
-
 		// TODO: temporary fix for crashes and issues resulting of failed msmsg decryption
-		if (encNode && encNode.attrs.type === 'msmsg') {
+		if (encNode?.attrs.type === 'msmsg') {
 			logger.debug({ key: node.attrs.key }, 'ignored msmsg')
-			await sendMessageAck(node)
+			await sendMessageAck(node, NACK_REASONS.MissingMessageSecret)
 			return
 		}
 
@@ -1043,6 +1127,34 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 			decrypt
 		} = decryptMessageNode(node, authState.creds.me!.id, authState.creds.me!.lid || '', signalRepository, logger)
 
+		// Store new LID mappings from message keys (upstream improvement)
+		const alt = msg.key.participantAlt || msg.key.remoteJidAlt
+		if (!!alt) {
+			const altServer = jidDecode(alt)?.server
+			const primaryJid = msg.key.participant || msg.key.remoteJid!
+			if (altServer === 'lid') {
+				if (!(await signalRepository.lidMapping.getPNForLID(alt))) {
+					await signalRepository.lidMapping.storeLIDPNMappings([{ lid: alt, pn: primaryJid }])
+					await signalRepository.migrateSession(primaryJid, alt)
+				}
+			} else {
+				await signalRepository.lidMapping.storeLIDPNMappings([{ lid: primaryJid, pn: alt }])
+				await signalRepository.migrateSession(alt, primaryJid)
+			}
+		}
+
+		// Add message to recent cache for retry receipts (upstream improvement)
+		if (msg.key?.remoteJid && msg.key?.id && messageRetryManager) {
+			messageRetryManager.addRecentMessage(msg.key.remoteJid, msg.key.id, msg.message!)
+			logger.debug(
+				{
+					jid: msg.key.remoteJid,
+					id: msg.key.id
+				},
+				'Added message to recent cache for retry receipts'
+			)
+		}
+
 		if (
 			msg.message?.protocolMessage?.type === proto.Message.ProtocolMessage.Type.SHARE_PHONE_NUMBER &&
 			node.attrs.sender_pn
@@ -1050,170 +1162,183 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 			ev.emit('chats.phoneNumberShare', { lid: node.attrs.from, jid: node.attrs.sender_pn })
 		}
 
-		if (msg.messageStubType === proto.WebMessageInfo.StubType.CIPHERTEXT) {
-			if (
-				msg?.messageStubParameters?.[0] === MISSING_KEYS_ERROR_TEXT ||
-				msg.messageStubParameters?.[0] === NO_MESSAGE_FOUND_ERROR_TEXT
-			) {
-				return sendMessageAck(node)
-			}
-		}
-
 		try {
-			await Promise.all([
-				processingMutex.mutex(async () => {
-					await decrypt()
-					// message failed to decrypt
-					if (msg.messageStubType === proto.WebMessageInfo.StubType.CIPHERTEXT) {
-						if (msg?.messageStubParameters?.[0] === MISSING_KEYS_ERROR_TEXT) {
-							return sendMessageAck(node, NACK_REASONS.ParsingError)
-						}
+			await messageMutex.mutex(async () => {
+				await decrypt()
+				// message failed to decrypt
+				if (msg.messageStubType === proto.WebMessageInfo.StubType.CIPHERTEXT && msg.category !== 'peer') {
+					const errorMessage = msg?.messageStubParameters?.[0] || ''
+					const isPreKeyError = errorMessage.includes('PreKey')
 
-						retryMutex.mutex(async () => {
-							if (ws.isOpen) {
-								if (getBinaryNodeChild(node, 'unavailable')) {
-									return
-								}
+					logger.debug(`[handleMessage] Attempting retry request for failed decryption`)
 
-								// Check circuit breaker before attempting retry
-								if (!prekeyCircuitBreaker.canExecute()) {
-									const stats = prekeyCircuitBreaker.getStats()
-									baileysLog(`🔴 Circuit Breaker OPEN - Blocking retry. State: ${stats.state}, Wait: ${Math.round(stats.timeUntilHalfOpen/1000)}s`)
-									logger.warn(
-										{
-											msgId: msg.key.id,
-											circuitState: stats.state,
-											timeUntilHalfOpen: stats.timeUntilHalfOpen
-										},
-										'Circuit breaker is open - skipping retry to prevent loop'
-									)
-									return
-								}
+					// Handle both pre-key and normal retries in single mutex
+					await retryMutex.mutex(async () => {
+						try {
+							if (!ws.isOpen) {
+								logger.debug({ node }, 'Connection closed, skipping retry')
+								return
+							}
 
-								const encNode = getBinaryNodeChild(node, 'enc')
+							// Check circuit breaker before attempting retry (fork customization)
+							if (!prekeyCircuitBreaker.canExecute()) {
+								const stats = prekeyCircuitBreaker.getStats()
+								baileysLog(`🔴 Circuit Breaker OPEN - Blocking retry. State: ${stats.state}, Wait: ${Math.round(stats.timeUntilHalfOpen/1000)}s`)
+								logger.warn(
+									{
+										msgId: msg.key.id,
+										circuitState: stats.state,
+										timeUntilHalfOpen: stats.timeUntilHalfOpen
+									},
+									'Circuit breaker is open - skipping retry to prevent loop'
+								)
+								return
+							}
+
+							// Handle pre-key errors with upload and delay
+							if (isPreKeyError) {
+								logger.info({ error: errorMessage }, 'PreKey error detected, uploading and retrying')
 
 								try {
-									// Get current retry count for exponential backoff
-									const msgKey = msg.key
-									const msgId = msgKey.id!
-									const key = `${msgId}:${msgKey?.participant}`
-									const retryCount = msgRetryCache.get<number>(key) || 0
-									const maxRetries = config.maxMsgRetryCount
-
-									// Log decrypt failed with retry count
-									logMessage('decrypt_failed', { messageId: msgId, retryCount: retryCount + 1, maxRetries })
-
-									// Calculate exponential backoff with jitter
-									if (retryCount > 0) {
-										const backoffDelay = getBackoffDelay(retryCount, config)
-										logger.debug(
-											{ msgId, retryCount, backoffDelay },
-											'Applying exponential backoff with jitter before retry'
-										)
-										await delay(backoffDelay)
-									}
-
-									await sendRetryRequest(node, !encNode)
-
-									// Record success in circuit breaker
-									prekeyCircuitBreaker.recordSuccess()
-
-									const cbStats = prekeyCircuitBreaker.getStats()
-
-									baileysLog(`✅ Message retry successful - CB State: ${cbStats.state}, Failures: ${cbStats.failures}, RetryCount: ${retryCount}`)
-									logger.warn(
-										{
-											component: 'CircuitBreaker',
-											msgId,
-											retryCount,
-											circuitBreakerState: cbStats.state,
-											cbFailures: cbStats.failures
-										},
-										'✅ Message retry successful - Circuit Breaker healthy'
-									)
-
-									if (retryRequestDelayMs) {
-										await delay(retryRequestDelayMs)
-									}
-								} catch (err) {
-									logger.error(
-										{ msgId: msg.key.id, error: (err as Error).message },
-										'Retry request failed'
-									)
-									prekeyCircuitBreaker.recordFailure(err as Error)
-									throw err
+									logger.debug('Uploading pre-keys for error recovery')
+									await uploadPreKeys(5)
+									logger.debug('Waiting for server to process new pre-keys')
+									await delay(1000)
+								} catch (uploadErr) {
+									logger.error({ uploadErr }, 'Pre-key upload failed, proceeding with retry anyway')
 								}
-							} else {
-								logger.debug({ node }, 'connection closed, ignoring retry req')
-							}
-						})
-					} else {
-						const isNewsletter = isJidNewsletter(msg.key.remoteJid!)
-						if (!isNewsletter) {
-							// no type in the receipt => message delivered
-							let type: MessageReceiptType = undefined
-							let participant = msg.key.participant
-							if (category === 'peer') {
-								type = 'peer_msg'
-							} else if (msg.key.fromMe) {
-								type = 'sender'
-								if (isJidUser(msg.key.remoteJid!) || isLidUser(msg.key.remoteJid!)) {
-									participant = author
-								}
-							} else if (!sendActiveReceipts) {
-								type = 'inactive'
 							}
 
-							await sendReceipt(msg.key.remoteJid!, participant!, [msg.key.id!], type)
+							// Get current retry count for exponential backoff (fork customization)
+							const msgKey = msg.key
+							const msgId = msgKey.id!
+							const key = `${msgId}:${msgKey?.participant}`
+							const retryCount = msgRetryCache.get<number>(key) || 0
+							const maxRetries = config.maxMsgRetryCount
 
-							// send ack for history message
-							const isAnyHistoryMsg = getHistoryMsg(msg.message!)
-							if (isAnyHistoryMsg) {
-								const jid = jidNormalizedUser(msg.key.remoteJid!)
-								await sendReceipt(jid, undefined, [msg.key.id!], 'hist_sync')
+							// Log decrypt failed with retry count
+							logMessage('decrypt_failed', { messageId: msgId, retryCount: retryCount + 1, maxRetries })
+
+							// Calculate exponential backoff with jitter (fork customization)
+							if (retryCount > 0) {
+								const backoffDelay = getBackoffDelay(retryCount, config)
+								logger.debug(
+									{ msgId, retryCount, backoffDelay },
+									'Applying exponential backoff with jitter before retry'
+								)
+								await delay(backoffDelay)
+							}
+
+							const encNode = getBinaryNodeChild(node, 'enc')
+							await sendRetryRequest(node, !encNode)
+
+							// Record success in circuit breaker (fork customization)
+							prekeyCircuitBreaker.recordSuccess()
+
+							const cbStats = prekeyCircuitBreaker.getStats()
+							baileysLog(`✅ Message retry successful - CB State: ${cbStats.state}, Failures: ${cbStats.failures}, RetryCount: ${retryCount}`)
+							logger.info(
+								{
+									component: 'CircuitBreaker',
+									msgId,
+									retryCount,
+									circuitBreakerState: cbStats.state,
+									cbFailures: cbStats.failures
+								},
+								'Message retry successful - Circuit Breaker healthy'
+							)
+
+							if (retryRequestDelayMs) {
+								await delay(retryRequestDelayMs)
+							}
+						} catch (err) {
+							logger.error({ err, isPreKeyError }, 'Failed to handle retry, attempting basic retry')
+							prekeyCircuitBreaker.recordFailure(err as Error)
+							// Still attempt retry even if pre-key upload failed
+							try {
+								const encNode = getBinaryNodeChild(node, 'enc')
+								await sendRetryRequest(node, !encNode)
+							} catch (retryErr) {
+								logger.error({ retryErr }, 'Failed to send retry after error handling')
 							}
 						}
-					}
 
-					cleanMessage(msg, authState.creds.me!.id, authState.creds.me!.lid)
-
-					// Log message received successfully
-					logMessage('received', {
-						messageId: msg.key.id || 'unknown',
-						from: msg.key.remoteJid || 'unknown'
+						await sendMessageAck(node, NACK_REASONS.UnhandledError)
 					})
-
-					await sendMessageAck(node)
-
-					await upsertMessage(msg, node.attrs.offline ? 'append' : 'notify')
-
-					// Prometheus: Record message received
-					const prometheus = getPrometheus()
-					if (prometheus?.isEnabled()) {
-						const messageType = msg.message?.conversation ? 'text' :
-										   msg.message?.imageMessage ? 'image' :
-										   msg.message?.videoMessage ? 'video' :
-										   msg.message?.audioMessage ? 'audio' :
-										   msg.message?.documentMessage ? 'document' :
-										   msg.message?.stickerMessage ? 'sticker' :
-										   msg.message?.contactMessage ? 'contact' :
-										   msg.message?.locationMessage ? 'location' :
-										   'other'
-						prometheus.recordMessageReceived(messageType)
-
-						// Record processing duration
-						const processingTime = Date.now() - (msg.messageTimestamp as number) * 1000
-						if (processingTime > 0 && processingTime < 60000) {
-							prometheus.recordMessageProcessingDuration(messageType, processingTime)
-						}
+				} else {
+					// Cancel pending phone request if message decrypted successfully (upstream improvement)
+					if (messageRetryManager && msg.key.id) {
+						messageRetryManager.cancelPendingPhoneRequest(msg.key.id)
 					}
+
+					const isNewsletter = isJidNewsletter(msg.key.remoteJid!)
+					if (!isNewsletter) {
+						// no type in the receipt => message delivered
+						let type: MessageReceiptType = undefined
+						let participant = msg.key.participant
+						if (category === 'peer') {
+							// special peer message
+							type = 'peer_msg'
+						} else if (msg.key.fromMe) {
+							// message was sent by us from a different device
+							type = 'sender'
+							// need to specially handle this case
+							if (isLidUser(msg.key.remoteJid!) || isLidUser(msg.key.remoteJidAlt)) {
+								participant = author // TODO: investigate sending receipts to LIDs and not PNs
+							}
+						} else if (!sendActiveReceipts) {
+							type = 'inactive'
+						}
+
+						await sendReceipt(msg.key.remoteJid!, participant!, [msg.key.id!], type)
+
+						// send ack for history message
+						const isAnyHistoryMsg = getHistoryMsg(msg.message!)
+						if (isAnyHistoryMsg) {
+							const jid = jidNormalizedUser(msg.key.remoteJid!)
+							await sendReceipt(jid, undefined, [msg.key.id!], 'hist_sync')
+						}
+					} else {
+						await sendMessageAck(node)
+						logger.debug({ key: msg.key }, 'processed newsletter message without receipts')
+					}
+				}
+
+				cleanMessage(msg, authState.creds.me!.id, authState.creds.me!.lid!)
+
+				// Log message received successfully (fork customization)
+				logMessage('received', {
+					messageId: msg.key.id || 'unknown',
+					from: msg.key.remoteJid || 'unknown'
 				})
-			])
+
+				await upsertMessage(msg, node.attrs.offline ? 'append' : 'notify')
+
+				// Prometheus: Record message received (fork customization)
+				const prometheus = getPrometheus()
+				if (prometheus?.isEnabled()) {
+					const messageType = msg.message?.conversation ? 'text' :
+									   msg.message?.imageMessage ? 'image' :
+									   msg.message?.videoMessage ? 'video' :
+									   msg.message?.audioMessage ? 'audio' :
+									   msg.message?.documentMessage ? 'document' :
+									   msg.message?.stickerMessage ? 'sticker' :
+									   msg.message?.contactMessage ? 'contact' :
+									   msg.message?.locationMessage ? 'location' :
+									   'other'
+					prometheus.recordMessageReceived(messageType)
+
+					// Record processing duration
+					const processingTime = Date.now() - (msg.messageTimestamp as number) * 1000
+					if (processingTime > 0 && processingTime < 60000) {
+						prometheus.recordMessageProcessingDuration(messageType, processingTime)
+					}
+				}
+			})
 		} catch (error) {
-			sendMessageAck(node)
 			logger.error({ error, node: binaryNodeToString(node) }, 'error in handling message')
 
-			// Prometheus: Record message processing error
+			// Prometheus: Record message processing error (fork customization)
 			const prometheus = getPrometheus()
 			if (prometheus?.isEnabled()) {
 				prometheus.recordConnectionError('message_processing_error')
