@@ -121,3 +121,11 @@ export const jidNormalizedUser = (jid: string | undefined) => {
 	const { user, server } = result
 	return jidEncode(user, server === 'c.us' ? 's.whatsapp.net' : (server as JidServer))
 }
+
+/** Transfer device ID from one JID to another (upstream feature) */
+export const transferDevice = (fromJid: string, toJid: string) => {
+	const fromDecoded = jidDecode(fromJid)
+	const deviceId = fromDecoded?.device || 0
+	const { server, user } = jidDecode(toJid)!
+	return jidEncode(user, server, deviceId)
+}

@@ -1,4 +1,5 @@
-import { Contact } from './Contact'
+import { Boom } from '@hapi/boom'
+import type { Contact } from './Contact'
 
 export type WAConnectionState = 'open' | 'connecting' | 'close'
 
@@ -22,7 +23,7 @@ export type ConnectionState = {
 	connection: WAConnectionState
 	/** the error that caused the connection to close */
 	lastDisconnect?: {
-		error: Error | undefined
+		error: Boom | Error | undefined
 		date: Date
 	}
 	/** is this a new login */
