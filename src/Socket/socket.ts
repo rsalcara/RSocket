@@ -413,6 +413,7 @@ export const makeSocket = (config: SocketConfig) => {
 	}
 
 	// Function to fetch LID-PN mappings via USync (needed for signalRepository)
+	// IMPORTANT: Must be defined AFTER executeUSyncQuery
 	const pnFromLIDUSync = async (jids: string[]): Promise<LIDMapping[] | undefined> => {
 		const usyncQuery = new USyncQuery().withLIDProtocol().withContext('background')
 
