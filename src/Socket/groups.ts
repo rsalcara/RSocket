@@ -326,12 +326,14 @@ export const extractGroupMetadata = (result: BinaryNode) => {
 	const memberAddMode = getBinaryNodeChildString(group, 'member_add_mode') === 'all_member_add'
 	const metadata: GroupMetadata = {
 		id: groupId,
+		notify: group.attrs.notify, // upstream improvement
 		addressingMode: group.attrs.addressing_mode as 'pn' | 'lid',
 		subject: group.attrs.subject,
 		subjectOwner: group.attrs.s_o,
 		subjectOwnerJid: group.attrs.s_o_pn,
 		subjectTime: +group.attrs.s_t,
-		size: getBinaryNodeChildren(group, 'participant').length,
+		// Better size handling (upstream improvement)
+		size: group.attrs.size ? +group.attrs.size : getBinaryNodeChildren(group, 'participant').length,
 		creation: +group.attrs.creation,
 		owner: group.attrs.creator ? jidNormalizedUser(group.attrs.creator) : undefined,
 		ownerJid: group.attrs.creator_pn ? jidNormalizedUser(group.attrs.creator_pn) : undefined,
