@@ -5,6 +5,10 @@ import { promises as fs } from 'fs'
 import { type Transform } from 'stream'
 import { proto } from '../../WAProto'
 import { MEDIA_KEYS, URL_REGEX, WA_DEFAULT_EPHEMERAL } from '../Defaults'
+
+// Call link prefixes for event messages (upstream feature)
+const CALL_AUDIO_PREFIX = 'https://call.whatsapp.com/voice/'
+const CALL_VIDEO_PREFIX = 'https://call.whatsapp.com/video/'
 import type {
 	AnyMediaMessageContent,
 	AnyMessageContent,
@@ -13,8 +17,8 @@ import type {
 	MessageContentGenerationOptions,
 	MessageGenerationOptions,
 	MessageGenerationOptionsFromContent,
-	MessageType,
 	MessageUserReceipt,
+	MessageWithContextInfo,
 	WAMediaUpload,
 	WAMessage,
 	WAMessageContent,
@@ -35,6 +39,14 @@ import {
 	getRawMediaUploadData,
 	type MediaDownloadOptions
 } from './messages-media'
+import { shouldIncludeReportingToken } from './reporting-utils'
+
+// Type-safe property check helper types (upstream improvement)
+type ExtractByKey<T, K extends PropertyKey> = T extends Record<K, any> ? T : never
+type RequireKey<T, K extends keyof T> = T & {
+	[P in K]-?: Exclude<T[P], null | undefined>
+}
+type WithKey<T, K extends PropertyKey> = T extends unknown ? (K extends keyof T ? RequireKey<T, K> : never) : never
 
 type MediaUploadData = {
 	media: WAMediaUpload
@@ -108,6 +120,30 @@ const assertColor = async (color: any) => {
 	}
 }
 
+/**
+ * Type-safe property check helper (upstream improvement)
+ * Checks if a message has a non-nullish property
+ */
+export const hasNonNullishProperty = <K extends PropertyKey>(
+	message: AnyMessageContent,
+	key: K
+): message is ExtractByKey<AnyMessageContent, K> => {
+	return (
+		typeof message === 'object' &&
+		message !== null &&
+		key in message &&
+		(message as any)[key] !== null &&
+		(message as any)[key] !== undefined
+	)
+}
+
+/**
+ * Type-safe optional property check helper (upstream improvement)
+ */
+function hasOptionalProperty<T, K extends PropertyKey>(obj: T, key: K): obj is WithKey<T, K> {
+	return typeof obj === 'object' && obj !== null && key in obj && (obj as any)[key] !== null
+}
+
 export const prepareWAMessageMedia = async (
 	message: AnyMediaMessageContent,
 	options: MessageContentGenerationOptions
@@ -127,10 +163,11 @@ export const prepareWAMessageMedia = async (
 
 	const uploadData: MediaUploadData = {
 		...message,
-		media: message[mediaType]
+		media: (message as any)[mediaType]
 	}
-	delete uploadData[mediaType]
+	delete (uploadData as any)[mediaType]
 
+	// check if cacheable + generate cache key
 	const cacheableKey =
 		typeof uploadData.media === 'object' &&
 		'url' in uploadData.media &&
@@ -146,15 +183,16 @@ export const prepareWAMessageMedia = async (
 		uploadData.mimetype = MIMETYPE_MAP[mediaType]
 	}
 
+	// Async cache get (upstream improvement)
 	if (cacheableKey) {
-		const mediaBuff = options.mediaCache!.get<Buffer>(cacheableKey)
+		const mediaBuff = await options.mediaCache!.get<Buffer>(cacheableKey)
 		if (mediaBuff) {
 			logger?.debug({ cacheableKey }, 'got media cache hit')
 
-			const obj = WAProto.Message.decode(mediaBuff)
+			const obj = proto.Message.decode(mediaBuff)
 			const key = `${mediaType}Message`
 
-			Object.assign(obj[key], { ...uploadData, media: undefined })
+			Object.assign(obj[key as keyof proto.Message]!, { ...uploadData, media: undefined })
 
 			return obj
 		}
@@ -179,7 +217,7 @@ export const prepareWAMessageMedia = async (
 		await fs.unlink(filePath)
 
 		const obj = WAProto.Message.fromObject({
-			[`${mediaType}Message`]: MessageTypeProto[mediaType].fromObject({
+			[`${mediaType}Message`]: (MessageTypeProto as any)[mediaType].fromObject({
 				url: mediaUrl,
 				directPath,
 				fileSha256,
@@ -198,9 +236,10 @@ export const prepareWAMessageMedia = async (
 			obj.stickerMessage.stickerSentTs = Date.now()
 		}
 
+		// Async cache set (upstream improvement)
 		if (cacheableKey) {
 			logger?.debug({ cacheableKey }, 'set cache')
-			options.mediaCache!.set(cacheableKey, WAProto.Message.encode(obj).finish())
+			await options.mediaCache!.set(cacheableKey, WAProto.Message.encode(obj).finish())
 		}
 
 		return obj
@@ -218,7 +257,7 @@ export const prepareWAMessageMedia = async (
 		{
 			logger,
 			saveOriginalFileIfRequired: requiresOriginalForSomeProcessing,
-			opts: options.options
+			opts: options.options as RequestInit
 		}
 	)
 
@@ -283,7 +322,7 @@ export const prepareWAMessageMedia = async (
 	})
 
 	const obj = WAProto.Message.fromObject({
-		[`${mediaType}Message`]: MessageTypeProto[mediaType].fromObject({
+		[`${mediaType}Message`]: (MessageTypeProto as any)[mediaType].fromObject({
 			url: mediaUrl,
 			directPath,
 			mediaKey,
@@ -301,9 +340,10 @@ export const prepareWAMessageMedia = async (
 		delete obj.videoMessage
 	}
 
+	// Async cache set (upstream improvement)
 	if (cacheableKey) {
 		logger?.debug({ cacheableKey }, 'set cache')
-		options.mediaCache!.set(cacheableKey, WAProto.Message.encode(obj).finish())
+		await options.mediaCache!.set(cacheableKey, WAProto.Message.encode(obj).finish())
 	}
 
 	return obj
@@ -339,9 +379,10 @@ export const generateForwardMessageContent = (message: WAMessage, forceForward?:
 	content = normalizeMessageContent(content)
 	content = proto.Message.decode(proto.Message.encode(content!).finish())
 
-	let key = Object.keys(content)[0] as MessageType
+	let key = Object.keys(content)[0] as keyof proto.IMessage
 
-	let score = content[key].contextInfo?.forwardingScore || 0
+	// Better type handling (upstream improvement)
+	let score = (content?.[key] as { contextInfo: proto.IContextInfo })?.contextInfo?.forwardingScore || 0
 	score += message.key.fromMe && !forceForward ? 0 : 1
 	if (key === 'conversation') {
 		content.extendedTextMessage = { text: content[key] }
@@ -350,10 +391,11 @@ export const generateForwardMessageContent = (message: WAMessage, forceForward?:
 		key = 'extendedTextMessage'
 	}
 
+	const key_ = content?.[key] as { contextInfo: proto.IContextInfo }
 	if (score > 0) {
-		content[key].contextInfo = { forwardingScore: score, isForwarded: true }
+		key_.contextInfo = { forwardingScore: score, isForwarded: true }
 	} else {
-		content[key].contextInfo = {}
+		key_.contextInfo = {}
 	}
 
 	return content
@@ -364,7 +406,9 @@ export const generateWAMessageContent = async (
 	options: MessageContentGenerationOptions
 ) => {
 	let m: WAMessageContent = {}
-	if ('text' in message) {
+
+	// Use type-safe property checks (upstream improvement)
+	if (hasNonNullishProperty(message, 'text')) {
 		const extContent = { text: message.text } as WATextMessage
 
 		let urlInfo = message.linkPreview
@@ -400,33 +444,33 @@ export const generateWAMessageContent = async (
 		}
 
 		m.extendedTextMessage = extContent
-	} else if ('contacts' in message) {
+	} else if (hasNonNullishProperty(message, 'contacts')) {
 		const contactLen = message.contacts.contacts.length
 		if (!contactLen) {
 			throw new Boom('require atleast 1 contact', { statusCode: 400 })
 		}
 
 		if (contactLen === 1) {
-			m.contactMessage = WAProto.Message.ContactMessage.fromObject(message.contacts.contacts[0])
+			m.contactMessage = WAProto.Message.ContactMessage.create(message.contacts.contacts[0])
 		} else {
-			m.contactsArrayMessage = WAProto.Message.ContactsArrayMessage.fromObject(message.contacts)
+			m.contactsArrayMessage = WAProto.Message.ContactsArrayMessage.create(message.contacts)
 		}
-	} else if ('location' in message) {
-		m.locationMessage = WAProto.Message.LocationMessage.fromObject(message.location)
-	} else if ('react' in message) {
+	} else if (hasNonNullishProperty(message, 'location')) {
+		m.locationMessage = WAProto.Message.LocationMessage.create(message.location)
+	} else if (hasNonNullishProperty(message, 'react')) {
 		if (!message.react.senderTimestampMs) {
 			message.react.senderTimestampMs = Date.now()
 		}
 
-		m.reactionMessage = WAProto.Message.ReactionMessage.fromObject(message.react)
-	} else if ('delete' in message) {
+		m.reactionMessage = WAProto.Message.ReactionMessage.create(message.react)
+	} else if (hasNonNullishProperty(message, 'delete')) {
 		m.protocolMessage = {
 			key: message.delete,
 			type: WAProto.Message.ProtocolMessage.Type.REVOKE
 		}
-	} else if ('forward' in message) {
+	} else if (hasNonNullishProperty(message, 'forward')) {
 		m = generateForwardMessageContent(message.forward, message.force)
-	} else if ('disappearingMessagesInChat' in message) {
+	} else if (hasNonNullishProperty(message, 'disappearingMessagesInChat')) {
 		const exp =
 			typeof message.disappearingMessagesInChat === 'boolean'
 				? message.disappearingMessagesInChat
@@ -434,7 +478,7 @@ export const generateWAMessageContent = async (
 					: 0
 				: message.disappearingMessagesInChat
 		m = prepareDisappearingMessageSettingContent(exp)
-	} else if ('groupInvite' in message) {
+	} else if (hasNonNullishProperty(message, 'groupInvite')) {
 		m.groupInviteMessage = {}
 		m.groupInviteMessage.inviteCode = message.groupInvite.inviteCode
 		m.groupInviteMessage.inviteExpiration = message.groupInvite.inviteExpiration
@@ -447,13 +491,15 @@ export const generateWAMessageContent = async (
 		if (options.getProfilePicUrl) {
 			const pfpUrl = await options.getProfilePicUrl(message.groupInvite.jid, 'preview')
 			if (pfpUrl) {
-				const resp = await axios.get(pfpUrl, { responseType: 'arraybuffer' })
-				if (resp.status === 200) {
-					m.groupInviteMessage.jpegThumbnail = resp.data
+				// Use native fetch instead of axios (upstream improvement)
+				const resp = await fetch(pfpUrl, { method: 'GET', dispatcher: (options as any)?.options?.dispatcher } as RequestInit)
+				if (resp.ok) {
+					const buf = Buffer.from(await resp.arrayBuffer())
+					m.groupInviteMessage.jpegThumbnail = buf
 				}
 			}
 		}
-	} else if ('pin' in message) {
+	} else if (hasNonNullishProperty(message, 'pin')) {
 		m.pinInChatMessage = {}
 		m.messageContextInfo = {}
 
@@ -462,7 +508,7 @@ export const generateWAMessageContent = async (
 		m.pinInChatMessage.senderTimestampMs = Date.now()
 
 		m.messageContextInfo.messageAddOnDurationInSecs = message.type === 1 ? message.time || 86400 : 0
-	} else if ('buttonReply' in message) {
+	} else if (hasNonNullishProperty(message, 'buttonReply')) {
 		switch (message.type) {
 			case 'template':
 				m.templateButtonReplyMessage = {
@@ -479,21 +525,44 @@ export const generateWAMessageContent = async (
 				}
 				break
 		}
-	} else if ('ptv' in message && message.ptv) {
+	} else if (hasOptionalProperty(message, 'ptv') && message.ptv) {
 		const { videoMessage } = await prepareWAMessageMedia({ video: message.video }, options)
 		m.ptvMessage = videoMessage
-	} else if ('product' in message) {
+	} else if (hasNonNullishProperty(message, 'product')) {
 		const { imageMessage } = await prepareWAMessageMedia({ image: message.product.productImage }, options)
-		m.productMessage = WAProto.Message.ProductMessage.fromObject({
+		m.productMessage = WAProto.Message.ProductMessage.create({
 			...message,
 			product: {
 				...message.product,
 				productImage: imageMessage
 			}
 		})
-	} else if ('listReply' in message) {
+	} else if (hasNonNullishProperty(message, 'listReply')) {
 		m.listResponseMessage = { ...message.listReply }
-	} else if ('poll' in message) {
+	} else if (hasNonNullishProperty(message, 'event')) {
+		// Event message support (upstream improvement)
+		m.eventMessage = {}
+		const startTime = Math.floor(message.event.startDate.getTime() / 1000)
+
+		if (message.event.call && options.getCallLink) {
+			const token = await options.getCallLink(message.event.call, { startTime })
+			m.eventMessage.joinLink = (message.event.call === 'audio' ? CALL_AUDIO_PREFIX : CALL_VIDEO_PREFIX) + token
+		}
+
+		m.messageContextInfo = {
+			// encKey
+			messageSecret: message.event.messageSecret || randomBytes(32)
+		}
+
+		m.eventMessage.name = message.event.name
+		m.eventMessage.description = message.event.description
+		m.eventMessage.startTime = startTime
+		m.eventMessage.endTime = message.event.endDate ? message.event.endDate.getTime() / 1000 : undefined
+		m.eventMessage.isCanceled = message.event.isCancelled ?? false
+		m.eventMessage.extraGuestsAllowed = message.event.extraGuestsAllowed
+		m.eventMessage.isScheduleCall = message.event.isScheduleCall ?? false
+		m.eventMessage.location = message.event.location
+	} else if (hasNonNullishProperty(message, 'poll')) {
 		message.poll.selectableCount ||= 0
 		message.poll.toAnnouncementGroup ||= false
 
@@ -530,17 +599,13 @@ export const generateWAMessageContent = async (
 				m.pollCreationMessage = pollCreationMessage
 			}
 		}
-	} else if ('sharePhoneNumber' in message) {
+	} else if (hasNonNullishProperty(message, 'sharePhoneNumber')) {
 		m.protocolMessage = {
 			type: proto.Message.ProtocolMessage.Type.SHARE_PHONE_NUMBER
 		}
-	} else if ('requestPhoneNumber' in message) {
+	} else if (hasNonNullishProperty(message, 'requestPhoneNumber')) {
 		m.requestPhoneNumberMessage = {}
-	} else if ('event' in message) {
-		// Event messages require CALL_AUDIO_PREFIX and CALL_VIDEO_PREFIX constants
-		// which are not yet available in this fork
-		throw new Boom('Event messages are not yet supported', { statusCode: 400 })
-	} else if ('limitSharing' in message) {
+	} else if (hasNonNullishProperty(message, 'limitSharing')) {
 		m.protocolMessage = {
 			type: proto.Message.ProtocolMessage.Type.LIMIT_SHARING,
 			limitSharing: {
@@ -554,17 +619,24 @@ export const generateWAMessageContent = async (
 		m = await prepareWAMessageMedia(message, options)
 	}
 
-	if ('viewOnce' in message && !!message.viewOnce) {
+	if (hasOptionalProperty(message, 'viewOnce') && !!message.viewOnce) {
 		m = { viewOnceMessage: { message: m } }
 	}
 
-	if ('mentions' in message && message.mentions?.length) {
-		const [messageType] = Object.keys(m)
-		m[messageType].contextInfo = m[messageType] || {}
-		m[messageType].contextInfo.mentionedJid = message.mentions
+	// Better mentions handling with type safety (upstream improvement)
+	if (hasOptionalProperty(message, 'mentions') && message.mentions?.length) {
+		const messageType = Object.keys(m)[0]! as Extract<keyof proto.IMessage, MessageWithContextInfo>
+		const key = m[messageType]
+		if (key && 'contextInfo' in key && !!key.contextInfo) {
+			key.contextInfo.mentionedJid = message.mentions
+		} else if (key) {
+			(key as any).contextInfo = {
+				mentionedJid: message.mentions
+			}
+		}
 	}
 
-	if ('edit' in message) {
+	if (hasOptionalProperty(message, 'edit')) {
 		m = {
 			protocolMessage: {
 				key: message.edit,
@@ -575,13 +647,26 @@ export const generateWAMessageContent = async (
 		}
 	}
 
-	if ('contextInfo' in message && !!message.contextInfo) {
-		const [messageType] = Object.keys(m)
-		m[messageType] = m[messageType] || {}
-		m[messageType].contextInfo = message.contextInfo
+	// Better contextInfo handling with type safety (upstream improvement)
+	if (hasOptionalProperty(message, 'contextInfo') && !!message.contextInfo) {
+		const messageType = Object.keys(m)[0]! as Extract<keyof proto.IMessage, MessageWithContextInfo>
+		const key = m[messageType]
+		if (key && 'contextInfo' in key && !!key.contextInfo) {
+			(key as any).contextInfo = { ...key.contextInfo, ...message.contextInfo }
+		} else if (key) {
+			(key as any).contextInfo = message.contextInfo
+		}
 	}
 
-	return WAProto.Message.fromObject(m)
+	// Add reporting token if required (upstream improvement)
+	if (shouldIncludeReportingToken(m)) {
+		m.messageContextInfo = m.messageContextInfo || {}
+		if (!m.messageContextInfo.messageSecret) {
+			m.messageContextInfo.messageSecret = randomBytes(32)
+		}
+	}
+
+	return WAProto.Message.create(m)
 }
 
 export const generateWAMessageFromContent = (
@@ -596,26 +681,27 @@ export const generateWAMessageFromContent = (
 	}
 
 	const innerMessage = normalizeMessageContent(message)!
-	const key: string = getContentType(innerMessage)!
+	const key = getContentType(innerMessage)! as Exclude<keyof proto.IMessage, 'conversation'>
 	const timestamp = unixTimestampSeconds(options.timestamp)
 	const { quoted, userJid } = options
 
 	if (quoted && !isJidNewsletter(jid)) {
 		const participant = quoted.key.fromMe
-			? userJid
+			? userJid // TODO: Add support for LIDs
 			: quoted.participant || quoted.key.participant || quoted.key.remoteJid
 
 		let quotedMsg = normalizeMessageContent(quoted.message)!
 		const msgType = getContentType(quotedMsg)!
-		// strip any redundant properties
-		quotedMsg = proto.Message.fromObject({ [msgType]: quotedMsg[msgType] })
+		// strip any redundant properties - use create instead of fromObject (upstream improvement)
+		quotedMsg = proto.Message.create({ [msgType]: quotedMsg[msgType] })
 
 		const quotedContent = quotedMsg[msgType]
 		if (typeof quotedContent === 'object' && quotedContent && 'contextInfo' in quotedContent) {
 			delete quotedContent.contextInfo
 		}
 
-		const contextInfo: proto.IContextInfo = innerMessage[key].contextInfo || {}
+		const contextInfo: proto.IContextInfo =
+			('contextInfo' in innerMessage[key]! && (innerMessage[key] as any)?.contextInfo) || {}
 		contextInfo.participant = jidNormalizedUser(participant!)
 		contextInfo.stanzaId = quoted.key.id
 		contextInfo.quotedMessage = quotedMsg
@@ -626,7 +712,10 @@ export const generateWAMessageFromContent = (
 			contextInfo.remoteJid = quoted.key.remoteJid
 		}
 
-		innerMessage[key].contextInfo = contextInfo
+		if (contextInfo && innerMessage[key]) {
+			/* @ts-ignore */
+			innerMessage[key].contextInfo = contextInfo
+		}
 	}
 
 	if (
@@ -639,14 +728,16 @@ export const generateWAMessageFromContent = (
 		// newsletters don't support ephemeral messages
 		!isJidNewsletter(jid)
 	) {
+		/* @ts-ignore */
 		innerMessage[key].contextInfo = {
-			...(innerMessage[key].contextInfo || {}),
+			...((innerMessage[key] as any).contextInfo || {}),
 			expiration: options.ephemeralExpiration || WA_DEFAULT_EPHEMERAL
 			//ephemeralSettingTimestamp: options.ephemeralOptions.eph_setting_ts?.toString()
 		}
 	}
 
-	message = WAProto.Message.fromObject(message)
+	// Use create instead of fromObject (upstream improvement)
+	message = WAProto.Message.create(message)
 
 	const messageJSON = {
 		key: {
@@ -657,10 +748,10 @@ export const generateWAMessageFromContent = (
 		message: message,
 		messageTimestamp: timestamp,
 		messageStubParameters: [],
-		participant: isJidGroup(jid) || isJidStatusBroadcast(jid) ? userJid : undefined,
+		participant: isJidGroup(jid) || isJidStatusBroadcast(jid) ? userJid : undefined, // TODO: Add support for LIDs
 		status: WAMessageStatus.PENDING
 	}
-	return WAProto.WebMessageInfo.fromObject(messageJSON)
+	return WAProto.WebMessageInfo.fromObject(messageJSON) as WAMessage
 }
 
 export const generateWAMessage = async (jid: string, content: AnyMessageContent, options: MessageGenerationOptions) => {
@@ -868,7 +959,7 @@ export function getAggregateVotesInPollMessage(
 				data = voteHashMap[hash]
 			}
 
-			voteHashMap[hash].voters.push(getKeyAuthor(update.pollUpdateMessageKey, meId))
+			voteHashMap[hash]!.voters.push(getKeyAuthor(update.pollUpdateMessageKey, meId))
 		}
 	}
 
@@ -950,8 +1041,9 @@ export const downloadMediaMessage = async <Type extends 'buffer' | 'stream'>(
 	const result = await downloadMsg().catch(async error => {
 		if (
 			ctx &&
-			(axios.isAxiosError(error) || typeof error?.status === 'number') && // check if the message requires a reupload
-			REUPLOAD_REQUIRED_STATUS.includes(error.response?.status ?? error.status)
+			// Check for HTTP status errors - works with both axios and fetch (upstream improvement)
+			typeof error?.status === 'number' &&
+			REUPLOAD_REQUIRED_STATUS.includes(error.status as number)
 		) {
 			ctx.logger.info({ key: message.key }, 'sending reupload media request...')
 			// request reupload
@@ -1020,21 +1112,23 @@ export const assertMediaContent = (content: proto.IMessage | null | undefined) =
 	return mediaContent
 }
 
-export const convertlidDevice = (jid:string, lid: string | null | undefined, meid:string | undefined, melid: string |undefined) =>{
-    const meLiidiser = jidDecode(melid)?.user;
+/**
+ * Convert JID to LID format (fork customization - preserved)
+ * Used for LID/PN mapping in message handling
+ */
+export const convertlidDevice = (jid: string, lid: string | null | undefined, meid: string | undefined, melid: string | undefined) => {
+	const meLiidiser = jidDecode(melid)?.user
 	const mejidUser = jidDecode(meid)?.user
-	const jidUser =  jidDecode(jid)?.user;
-	const jidDevice = jidDecode(jid)?.device;
-	if(jidUser===mejidUser){
-     return  jidDevice ? `${meLiidiser}:${jidDevice}@lid` : `${meLiidiser}@lid`;
-    }
-	if(jidUser===melid)
-	{
+	const jidUser = jidDecode(jid)?.user
+	const jidDevice = jidDecode(jid)?.device
+	if (jidUser === mejidUser) {
+		return jidDevice ? `${meLiidiser}:${jidDevice}@lid` : `${meLiidiser}@lid`
+	}
+	if (jidUser === melid) {
 		return jid
 	}
 
-	if(!lid){ return jid}	
-	const lidUser = jidDecode(lid)?.user;		
-	return  jidDevice ? `${lidUser}:${jidDevice}@lid` : `${lidUser}@lid`;
-	}
-
+	if (!lid) { return jid }
+	const lidUser = jidDecode(lid)?.user
+	return jidDevice ? `${lidUser}:${jidDevice}@lid` : `${lidUser}@lid`
+}
