@@ -1,4 +1,4 @@
-import { proto } from '../../WAProto';
+import { proto } from '../../WAProto/index.js';
 import type { AuthenticationCreds, BaileysEventEmitter, CacheStore, SignalKeyStoreWithTransaction, SocketConfig, WAMessage, WAMessageKey } from '../Types/index.js';
 import type { ILogger } from './logger.js';
 import type { SignalRepository } from '../Types/Signal.js';

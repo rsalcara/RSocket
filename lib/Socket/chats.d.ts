@@ -1,5 +1,5 @@
 import { Boom } from '@hapi/boom';
-import { proto } from '../../WAProto';
+import { proto } from '../../WAProto/index.js';
 import { BotListInfo, ChatModification, MessageUpsertType, SocketConfig, WABusinessProfile, WAMediaUpload, WAMessage, WAPatchCreate, WAPresence, WAPrivacyCallValue, WAPrivacyGroupAddValue, WAPrivacyMessagesValue, WAPrivacyOnlineValue, WAPrivacyValue, WAReadReceiptsValue } from '../Types/index.js';
 import { LabelActionBody } from '../Types/Label.js';
 import type { QuickReplyAction } from '../Types/Bussines.js';

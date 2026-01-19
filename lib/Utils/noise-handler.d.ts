@@ -1,4 +1,4 @@
-import { proto } from '../../WAProto';
+import { proto } from '../../WAProto/index.js';
 import { KeyPair } from '../Types/index.js';
 import { BinaryNode } from '../WABinary/index.js';
 import { ILogger } from './logger.js';

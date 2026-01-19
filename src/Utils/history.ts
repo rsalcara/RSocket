@@ -1,6 +1,6 @@
 import { promisify } from 'util'
 import { inflate } from 'zlib'
-import { proto } from '../../WAProto'
+import { proto } from '../../WAProto/index.js'
 import { Chat, Contact, WAMessageStubType } from '../Types'
 import { isJidUser } from '../WABinary'
 import { toNumber } from './generics'

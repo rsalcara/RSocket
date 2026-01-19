@@ -1,4 +1,4 @@
-import type { proto } from '../../WAProto';
+import type { proto } from '../../WAProto/index.js';
 import type { Contact } from './Contact.js';
 import type { MinimalMessage } from './Message.js';
 export type KeyPair = {

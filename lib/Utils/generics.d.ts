@@ -1,4 +1,4 @@
-import { proto } from '../../WAProto';
+import { proto } from '../../WAProto/index.js';
 import type { BaileysEventEmitter, BaileysEventMap, BrowsersMap, ConnectionState, WACallUpdateType, WAMessageKey, WAVersion } from '../Types/index.js';
 import { type BinaryNode } from '../WABinary/index.js';
 export declare const Browsers: BrowsersMap;

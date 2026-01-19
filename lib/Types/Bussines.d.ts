@@ -1,4 +1,4 @@
-import { proto } from '../../WAProto';
+import { proto } from '../../WAProto/index.js';
 /**
  * Day of week for business hours
  */

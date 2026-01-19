@@ -1,6 +1,6 @@
 import type { Readable } from 'stream';
 import type { URL } from 'url';
-import { proto } from '../../WAProto';
+import { proto } from '../../WAProto/index.js';
 import { MEDIA_HKDF_KEY_MAPPING } from '../Defaults/index.js';
 import type { BinaryNode } from '../WABinary/index.js';
 import type { GroupMetadata } from './GroupMetadata.js';

@@ -1,5 +1,5 @@
 import { readFileSync } from 'fs'
-import { proto } from '../../WAProto'
+import { proto } from '../../WAProto/index.js'
 import { DownloadableMessage, MediaType } from '../Types'
 import { downloadContentFromMessage } from '../Utils'
 
