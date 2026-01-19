@@ -286,6 +286,16 @@ const processMessage = async (
 
 					const data = await downloadAndProcessHistorySyncNotification(histNotification, options)
 
+					// Emit LID-PN mappings from history sync (PR #2268)
+					if (data.lidPnMappings?.length) {
+						logger?.debug({ count: data.lidPnMappings.length }, 'extracted LID-PN mappings from history sync')
+						for (const mapping of data.lidPnMappings) {
+							ev.emit('lid-mapping.update', mapping)
+						}
+						// Also store in signal repository for immediate use
+						await signalRepository.lidMapping.storeLIDPNMappings(data.lidPnMappings)
+					}
+
 					ev.emit('messaging-history.set', {
 						...data,
 						isLatest: histNotification.syncType !== proto.HistorySync.HistorySyncType.ON_DEMAND ? isLatest : undefined,

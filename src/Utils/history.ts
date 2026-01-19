@@ -1,7 +1,7 @@
 import { promisify } from 'util'
 import { inflate } from 'zlib'
 import { proto } from '../../WAProto'
-import { Chat, Contact, WAMessageStubType } from '../Types'
+import { Chat, Contact, LIDMapping, WAMessageStubType } from '../Types'
 import { isJidUser } from '../WABinary'
 import { toNumber } from './generics'
 import { normalizeMessageContent } from './messages'
@@ -29,6 +29,14 @@ export const processHistoryMessage = (item: proto.IHistorySync) => {
 	const messages: proto.IWebMessageInfo[] = []
 	const contacts: Contact[] = []
 	const chats: Chat[] = []
+
+	// Extract LID-PN mappings from history sync (PR #2268)
+	const lidPnMappings: LIDMapping[] = []
+	for (const m of item.phoneNumberToLidMappings || []) {
+		if (m.lidJid && m.pnJid) {
+			lidPnMappings.push({ lid: m.lidJid, pn: m.pnJid })
+		}
+	}
 
 	switch (item.syncType) {
 		case proto.HistorySync.HistorySyncType.INITIAL_BOOTSTRAP:
@@ -88,7 +96,8 @@ export const processHistoryMessage = (item: proto.IHistorySync) => {
 		contacts,
 		messages,
 		syncType: item.syncType,
-		progress: item.progress
+		progress: item.progress,
+		lidPnMappings
 	}
 }
 
