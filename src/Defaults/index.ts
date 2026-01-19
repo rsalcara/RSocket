@@ -79,7 +79,10 @@ export const DEFAULT_CONNECTION_CONFIG: SocketConfig = {
 	countryCode: 'US',
 	getMessage: async () => undefined,
 	cachedGroupMetadata: async () => undefined,
-	makeSignalRepository: makeLibSignalRepository
+	makeSignalRepository: makeLibSignalRepository,
+	// Auto-fetch version settings
+	fetchLatestVersion: false,
+	versionCacheTTLMs: 60 * 60 * 1000 // 1 hour
 }
 
 export const MEDIA_PATH_MAP: { [T in MediaType]?: string } = {

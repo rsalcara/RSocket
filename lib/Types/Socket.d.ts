@@ -171,5 +171,26 @@ export type SocketConfig = {
      * @default false
      */
     enableAutoSessionRecreation?: boolean;
+    /**
+     * Automatically fetch the latest WhatsApp Web version before connecting.
+     * When enabled, Baileys will fetch the current version from WhatsApp's servers
+     * instead of using the hardcoded version.
+     *
+     * @default false
+     * @example
+     * makeWASocket({
+     *   auth: state,
+     *   fetchLatestVersion: true // Will auto-fetch latest version
+     * })
+     */
+    fetchLatestVersion?: boolean;
+    /**
+     * Cache duration in milliseconds for the fetched WhatsApp Web version.
+     * Only used when fetchLatestVersion is true.
+     * Prevents hitting WhatsApp's servers too often.
+     *
+     * @default 3600000 (1 hour)
+     */
+    versionCacheTTLMs?: number;
 };
 //# sourceMappingURL=Socket.d.ts.map

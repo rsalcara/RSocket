@@ -60,6 +60,33 @@ export declare const fetchLatestWaWebVersion: (options?: RequestInit) => Promise
     isLatest: boolean;
     error: any;
 }>;
+/**
+ * Fetches the latest WhatsApp Web version with caching.
+ * Returns cached version if still valid, otherwise fetches fresh.
+ *
+ * @param cacheTTLMs - Cache duration in milliseconds (default: 1 hour)
+ * @param options - Fetch options
+ * @returns The latest version (from cache or freshly fetched)
+ */
+export declare const fetchLatestWaWebVersionCached: (cacheTTLMs?: number, options?: RequestInit) => Promise<{
+    version: WAVersion;
+    isLatest: boolean;
+    fromCache?: boolean;
+    error?: unknown;
+}>;
+/**
+ * Clears the cached WhatsApp Web version.
+ * Useful for forcing a fresh fetch on next connection.
+ */
+export declare const clearWaVersionCache: () => void;
+/**
+ * Gets the current cached version info without fetching.
+ * Returns null if no cached version exists.
+ */
+export declare const getCachedWaVersion: () => {
+    version: WAVersion;
+    fetchedAt: number;
+} | null;
 /** unique message tag prefix for MD clients */
 export declare const generateMdTagPrefix: () => string;
 /**
