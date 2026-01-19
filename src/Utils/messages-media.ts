@@ -262,14 +262,11 @@ export async function getAudioWaveform(buffer: Buffer | string | Readable, logge
 			audioData = buffer
 		} else if (typeof buffer === 'string') {
 			const rStream = createReadStream(buffer)
-			// Guaranteed cleanup: destroy stream after use (PR #2273)
-			try {
-				audioData = await toBuffer(rStream)
-			} finally {
-				rStream.destroy()
-			}
+			// toBuffer() already calls stream.destroy() internally (PR #2273 fix)
+			audioData = await toBuffer(rStream, 50 * 1024 * 1024) // 50MB limit for audio
 		} else {
-			audioData = await toBuffer(buffer)
+			// Explicit maxSize for audio streams (PR #2273 fix)
+			audioData = await toBuffer(buffer, 50 * 1024 * 1024) // 50MB limit for audio
 		}
 
 		const audioBuffer = await decoder(audioData)

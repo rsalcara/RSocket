@@ -1515,7 +1515,15 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 			})
 		}
 
-		return { enqueue }
+		// Clear all pending offline nodes (PR #2273 fix - memory leak prevention)
+		const clear = () => {
+			const count = nodes.length
+			nodes.length = 0
+			isProcessing = false
+			return count
+		}
+
+		return { enqueue, clear }
 	}
 
 	const offlineNodeProcessor = makeOfflineNodeProcessor()
@@ -1663,6 +1671,12 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		callOfferCache.flushAll()
 		placeholderResendCache.flushAll()
 		identityAssertDebounce.flushAll()
+
+		// Clear offline nodes queue (PR #2273 fix - can have up to 5000 nodes)
+		const clearedNodes = offlineNodeProcessor.clear()
+		if (clearedNodes > 0) {
+			logger.debug({ clearedNodes }, 'cleared pending offline nodes')
+		}
 
 		logger.debug('messages-recv event listeners and caches cleaned up')
 	}
