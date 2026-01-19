@@ -60,7 +60,12 @@ export const reduceBinaryNodeToDictionary = (node: BinaryNode, tag: string) => {
 	const nodes = getBinaryNodeChildren(node, tag)
 	const dict = nodes.reduce(
 		(dict, { attrs }) => {
-			dict[attrs.name || attrs.config_code] = attrs.value || attrs.config_value
+			// Safer handling of attrs (upstream improvement)
+			if (typeof attrs.name === 'string') {
+				dict[attrs.name] = attrs.value || attrs.config_value
+			} else {
+				dict[attrs.config_code] = attrs.value || attrs.config_value
+			}
 			return dict
 		},
 		{} as { [_: string]: string }
@@ -92,9 +97,9 @@ function bufferToUInt(e: Uint8Array | Buffer, t: number) {
 
 const tabs = (n: number) => '\t'.repeat(n)
 
-export function binaryNodeToString(node: BinaryNode | BinaryNode['content'], i = 0) {
+export function binaryNodeToString(node: BinaryNode | BinaryNode['content'], i = 0): string {
 	if (!node) {
-		return node
+		return ''
 	}
 
 	if (typeof node === 'string') {
