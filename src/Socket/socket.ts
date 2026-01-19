@@ -1037,8 +1037,19 @@ export const makeSocket = (config: SocketConfig) => {
 	})
 	// login complete
 	ws.on('CB:success', async (node: BinaryNode) => {
-		await uploadPreKeysToServerIfRequired()
-		await sendPassiveIq('active')
+		// Wrap initial operations in try/catch like upstream does
+		try {
+			await uploadPreKeysToServerIfRequired()
+			await sendPassiveIq('active')
+			// Validate key bundle on server (critical for preventing error 515)
+			try {
+				await digestKeyBundle()
+			} catch (e) {
+				logger.warn({ e }, 'failed to run digest after login')
+			}
+		} catch (err) {
+			logger.warn({ err }, 'failed to send initial passive iq')
+		}
 
 		logger.info('opened connection to WA')
 		logAuth('success')
@@ -1064,11 +1075,24 @@ export const makeSocket = (config: SocketConfig) => {
 			logger.trace({ err }, 'Failed to record connection metrics')
 		}
 
-		// NOTE: LID session migration temporarily disabled to debug error 515
-		// This code was causing issues - needs investigation
-		// if (node.attrs.lid && authState.creds.me?.id) {
-		// 	... LID migration code ...
-		// }
+		// LID session migration - using process.nextTick like upstream
+		if (node.attrs.lid && authState.creds.me?.id) {
+			const myLID = node.attrs.lid
+			process.nextTick(async () => {
+				try {
+					const myPN = authState.creds.me!.id
+					await signalRepository.lidMapping.storeLIDPNMappings([{ lid: myLID, pn: myPN }])
+					const { user, device } = jidDecode(myPN)!
+					await keys.set({
+						'device-list': { [user]: [device?.toString() || '0'] }
+					})
+					await signalRepository.migrateSession(myPN, myLID)
+					logger.info({ myPN, myLID }, 'Own LID session created successfully')
+				} catch (error) {
+					logger.error({ error, lid: myLID }, 'Failed to create own LID session')
+				}
+			})
+		}
 	})
 
 	ws.on('CB:stream:error', (node: BinaryNode) => {
