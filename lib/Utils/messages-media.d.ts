@@ -35,7 +35,13 @@ export declare function getAudioDuration(buffer: Buffer | string | Readable): Pr
  */
 export declare function getAudioWaveform(buffer: Buffer | string | Readable, logger?: ILogger): Promise<Uint8Array<ArrayBuffer> | undefined>;
 export declare const toReadable: (buffer: Buffer) => Readable;
-export declare const toBuffer: (stream: Readable) => Promise<Buffer<ArrayBuffer>>;
+/**
+ * Converts a readable stream to a buffer with OOM protection (PR #2273)
+ * @param stream - The readable stream to convert
+ * @param maxSize - Maximum allowed size in bytes (default: 100MB)
+ * @throws Boom error if stream exceeds maxSize
+ */
+export declare const toBuffer: (stream: Readable, maxSize?: number) => Promise<Buffer<ArrayBuffer>>;
 export declare const getStream: (item: WAMediaUpload, opts?: RequestInit & {
     maxContentLength?: number;
 }) => Promise<{
