@@ -7,21 +7,21 @@ export declare const CALL_AUDIO_PREFIX = "https://call.whatsapp.com/voice/";
 export declare const DEF_CALLBACK_PREFIX = "CB:";
 export declare const DEF_TAG_PREFIX = "TAG:";
 export declare const PHONE_CONNECTION_CB = "CB:Pong";
-export declare const WA_ADV_ACCOUNT_SIG_PREFIX: Buffer<ArrayBuffer>;
-export declare const WA_ADV_DEVICE_SIG_PREFIX: Buffer<ArrayBuffer>;
-export declare const WA_ADV_HOSTED_ACCOUNT_SIG_PREFIX: Buffer<ArrayBuffer>;
-export declare const WA_ADV_HOSTED_DEVICE_SIG_PREFIX: Buffer<ArrayBuffer>;
+export declare const WA_ADV_ACCOUNT_SIG_PREFIX: any;
+export declare const WA_ADV_DEVICE_SIG_PREFIX: any;
+export declare const WA_ADV_HOSTED_ACCOUNT_SIG_PREFIX: any;
+export declare const WA_ADV_HOSTED_DEVICE_SIG_PREFIX: any;
 export declare const WA_DEFAULT_EPHEMERAL: number;
 export declare const NOISE_MODE = "Noise_XX_25519_AESGCM_SHA256\0\0\0\0";
 export declare const DICT_VERSION = 3;
-export declare const KEY_BUNDLE_TYPE: Buffer<ArrayBuffer>;
-export declare const NOISE_WA_HEADER: Buffer<ArrayBuffer>;
+export declare const KEY_BUNDLE_TYPE: any;
+export declare const NOISE_WA_HEADER: any;
 /** from: https://stackoverflow.com/questions/3809401/what-is-a-good-regular-expression-to-match-a-url */
 export declare const URL_REGEX: RegExp;
 export declare const WA_CERT_DETAILS: {
     SERIAL: number;
     ISSUER: string;
-    PUBLIC_KEY: Buffer<ArrayBuffer>;
+    PUBLIC_KEY: any;
 };
 export declare const PROCESSABLE_HISTORY_TYPES: proto.Message.HistorySyncNotification.HistorySyncType[];
 export declare const DEFAULT_CONNECTION_CONFIG: SocketConfig;
@@ -51,9 +51,9 @@ export declare const MEDIA_HKDF_KEY_MAPPING: {
 };
 export declare const MEDIA_KEYS: MediaType[];
 export declare const MIN_PREKEY_COUNT = 5;
-export declare const INITIAL_PREKEY_COUNT = 30;
+export declare const INITIAL_PREKEY_COUNT = 812;
 /** Minimum interval between pre-key uploads (in milliseconds) */
-export declare const MIN_UPLOAD_INTERVAL = 60000;
+export declare const MIN_UPLOAD_INTERVAL = 5000;
 /** Timeout for pre-key upload operations (in milliseconds) */
 export declare const UPLOAD_TIMEOUT = 30000;
 /**

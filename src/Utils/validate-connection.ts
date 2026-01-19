@@ -102,6 +102,7 @@ export const generateRegistrationNode = (
 		historySyncConfig: {
 			storageQuotaMb: 10240,
 			inlineInitialPayloadInE2EeMsg: true,
+			recentSyncDaysLimit: undefined,
 			supportCallLogHistory: false,
 			supportBotUserAgentChatHistory: true,
 			supportCagReactionsAndPolls: true,
@@ -109,7 +110,11 @@ export const generateRegistrationNode = (
 			supportRecentSyncChunkMessageCountTuning: true,
 			supportHostedGroupMsg: true,
 			supportFbidBotChatHistory: true,
-			supportMessageAssociation: true
+			supportAddOnHistorySyncMigration: undefined,
+			supportMessageAssociation: true,
+			supportGroupHistory: false,
+			onDemandReady: undefined,
+			supportGuestChat: undefined
 		},
 		version: {
 			primary: 10,

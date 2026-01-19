@@ -124,10 +124,14 @@ export const MEDIA_KEYS = Object.keys(MEDIA_PATH_MAP) as MediaType[]
 
 export const MIN_PREKEY_COUNT = 5
 
-export const INITIAL_PREKEY_COUNT = 30
+// CRITICAL: This value must match upstream (812) to prevent error 515
+// WhatsApp requires a minimum number of pre-keys for session establishment
+// Reduced values cause "restart required" (515) errors during connection
+export const INITIAL_PREKEY_COUNT = 812
 
 /** Minimum interval between pre-key uploads (in milliseconds) */
-export const MIN_UPLOAD_INTERVAL = 60_000 // 1 minute
+// Restored to upstream value to ensure timely pre-key uploads
+export const MIN_UPLOAD_INTERVAL = 5000 // 5 seconds (upstream default)
 
 /** Timeout for pre-key upload operations (in milliseconds) */
 export const UPLOAD_TIMEOUT = 30_000 // 30 seconds
