@@ -22,7 +22,9 @@
       "require": "./lib/index.js",
       "default": "./lib/index.js"
     },
-    "./lib/*": "./lib/*",
+    "./lib/*": "./lib/*.js",
+    "./lib/*.js": "./lib/*.js",
+    "./lib/*.d.ts": "./lib/*.d.ts",
     "./WAProto": {
       "import": "./WAProto/index.mjs",
       "require": "./WAProto/index.js",
