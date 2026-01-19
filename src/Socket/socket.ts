@@ -47,7 +47,6 @@ import {
 	type BinaryNode,
 	binaryNodeToString,
 	encodeBinaryNode,
-	getAllBinaryNodeChildren,
 	getBinaryNodeChild,
 	getBinaryNodeChildren,
 	isLidUser,
@@ -1037,19 +1036,8 @@ export const makeSocket = (config: SocketConfig) => {
 	})
 	// login complete
 	ws.on('CB:success', async (node: BinaryNode) => {
-		try {
-			await uploadPreKeysToServerIfRequired()
-			await sendPassiveIq('active')
-
-			// After successful login, validate our key-bundle against server
-			try {
-				await digestKeyBundle()
-			} catch (e) {
-				logger.warn({ e }, 'failed to run digest after login')
-			}
-		} catch (err) {
-			logger.warn({ err }, 'failed to send initial passive iq')
-		}
+		await uploadPreKeysToServerIfRequired()
+		await sendPassiveIq('active')
 
 		logger.info('opened connection to WA')
 		logAuth('success')
@@ -1125,8 +1113,7 @@ export const makeSocket = (config: SocketConfig) => {
 	})
 
 	ws.on('CB:stream:error', (node: BinaryNode) => {
-		const [reasonNode] = getAllBinaryNodeChildren(node)
-		logger.error({ reasonNode, fullErrorNode: node }, 'stream errored out')
+		logger.error({ node }, 'stream errored out')
 
 		const { reason, statusCode } = getErrorCodeFromStreamError(node)
 
@@ -1140,7 +1127,7 @@ export const makeSocket = (config: SocketConfig) => {
 			logger.trace({ err }, 'Failed to record stream error metrics')
 		}
 
-		void end(new Boom(`Stream Errored (${reason})`, { statusCode, data: reasonNode || node }))
+		end(new Boom(`Stream Errored (${reason})`, { statusCode, data: node }))
 	})
 	// stream fail, possible logout
 	ws.on('CB:failure', (node: BinaryNode) => {
