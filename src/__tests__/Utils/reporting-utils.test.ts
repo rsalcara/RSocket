@@ -1,5 +1,5 @@
 import { randomBytes } from 'crypto'
-import { proto } from '../../../WAProto/index.js'
+import { proto } from '../../../WAProto/index.mjs'
 import type { WAMessageKey } from '../../Types'
 import { getMessageReportingToken, shouldIncludeReportingToken } from '../../Utils/reporting-utils'
 import type { BinaryNode } from '../../WABinary'

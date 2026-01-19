@@ -1,5 +1,5 @@
 import { Boom } from '@hapi/boom';
-import { proto } from '../../WAProto/index.js';
+import { proto } from '../../WAProto/index.mjs';
 import { AnyMessageContent, MediaConnInfo, MessageReceiptType, MessageRelayOptions, MiscMessageGenerationOptions, SocketConfig, WAMessage, WAMessageKey } from '../Types/index.js';
 import { MessageRetryManager } from '../Utils/index.js';
 import { BinaryNode, JidWithDevice } from '../WABinary/index.js';

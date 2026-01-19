@@ -1,4 +1,4 @@
-import { proto } from '../../WAProto/index.js';
+import { proto } from '../../WAProto/index.mjs';
 import type { WAMessageContent, WAMessageKey } from '../Types/index.js';
 import type { BinaryNode } from '../WABinary/index.js';
 export type ReportingField = {

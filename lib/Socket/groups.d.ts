@@ -1,4 +1,4 @@
-import { proto } from '../../WAProto/index.js';
+import { proto } from '../../WAProto/index.mjs';
 import { GroupMetadata, ParticipantAction, SocketConfig, WAMessageKey } from '../Types/index.js';
 import { BinaryNode } from '../WABinary/index.js';
 export declare const makeGroupsSocket: (config: SocketConfig) => {

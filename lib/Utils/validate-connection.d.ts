@@ -1,4 +1,4 @@
-import { proto } from '../../WAProto/index.js';
+import { proto } from '../../WAProto/index.mjs';
 import type { AuthenticationCreds, SignalCreds, SocketConfig } from '../Types/index.js';
 import { type BinaryNode } from '../WABinary/index.js';
 export declare const generateLoginNode: (userJid: string, config: SocketConfig) => proto.IClientPayload;

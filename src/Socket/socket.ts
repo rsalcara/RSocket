@@ -2,7 +2,7 @@ import { Boom } from '@hapi/boom'
 import { randomBytes } from 'crypto'
 import { URL } from 'url'
 import { promisify } from 'util'
-import { proto } from '../../WAProto/index.js'
+import { proto } from '../../WAProto/index.mjs'
 import {
 	DEF_CALLBACK_PREFIX,
 	DEF_TAG_PREFIX,
