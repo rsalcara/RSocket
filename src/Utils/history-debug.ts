@@ -168,14 +168,19 @@ export const logHistorySyncDebug = (
 			pushnames: debugData.pushnamesCount
 		}
 
-		logger.info(logData, '📊 History Sync Debug')
+		logger.info(
+			logData,
+			`[BAILEYS-DEBUG] 📊 History Sync: ${debugData.syncTypeName}, ${debugData.conversationsCount} conversations`
+		)
 
-		// Log each LID-PN mapping at debug level
+		// Log LID-PN mapping summary at debug level
 		if (debugData.phoneNumberMappingsCount > 0) {
 			logger.debug(
 				{ mappings: debugData.phoneNumberMappings },
-				`📱 Found ${debugData.phoneNumberMappingsCount} LID-PN mappings in history sync`
+				`[BAILEYS-DEBUG] 📱 LID-PN mappings found: ${debugData.phoneNumberMappingsCount}`
 			)
+		} else {
+			logger.debug({}, '[BAILEYS-DEBUG] ℹ️ No LID-PN mappings in this sync')
 		}
 	}
 
@@ -193,9 +198,15 @@ export const logHistorySyncDebug = (
 
 		try {
 			writeFileSync(savedFilePath, JSON.stringify(debugData, null, 2))
-			logger?.info({ path: savedFilePath }, '📁 History sync debug saved to file')
+			logger?.info(
+				{ path: savedFilePath },
+				'[BAILEYS-DEBUG] 📁 History sync debug saved to file'
+			)
 		} catch (err) {
-			logger?.warn({ err, path: savedFilePath }, 'Failed to save history sync debug file')
+			logger?.warn(
+				{ err, path: savedFilePath },
+				'[BAILEYS-DEBUG] ❌ Failed to save history sync debug file'
+			)
 		}
 	}
 
