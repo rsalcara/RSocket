@@ -1,6 +1,7 @@
 import type { Agent } from 'https'
 import type { URL } from 'url'
 import { proto } from '../../WAProto'
+import type { HistorySyncDebugConfig } from '../Utils/history-debug'
 import { ILogger } from '../Utils/logger'
 import { AuthenticationState, SignalAuthState, TransactionCapabilityOptions } from './Auth'
 import { GroupMetadata } from './GroupMetadata'
@@ -216,4 +217,23 @@ export type SocketConfig = {
 	 * @default 3600000 (1 hour)
 	 */
 	versionCacheTTLMs?: number
+
+	/**
+	 * Debug configuration for history sync.
+	 * When enabled, logs detailed information about history sync payloads
+	 * including LID-PN mappings, conversations, and messages.
+	 *
+	 * Useful for debugging issues with phone number display for non-contacts.
+	 *
+	 * @example
+	 * makeWASocket({
+	 *   auth: state,
+	 *   historySyncDebug: {
+	 *     enabled: true,
+	 *     saveToFile: true,
+	 *     outputDir: '/tmp/baileys-debug'
+	 *   }
+	 * })
+	 */
+	historySyncDebug?: Partial<HistorySyncDebugConfig>
 }
