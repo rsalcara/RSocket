@@ -1,36 +1,59 @@
 /* @ts-ignore */
 import * as libsignal from 'libsignal'
 import { LRUCache } from 'lru-cache'
-import { SignalAuthState } from '../Types'
-import { LIDMapping, LIDMappingStore, SignalRepository } from '../Types/Signal'
-import { PnFromLIDUSyncFn } from '../Types/Socket'
+import type { SignalAuthState, SignalKeyStoreWithTransaction } from '../Types'
+import type { LIDMapping, LIDMappingStore, SignalRepository } from '../Types/Signal'
+import type { PnFromLIDUSyncFn } from '../Types/Socket'
 import { generateSignalPubKey } from '../Utils'
-import { ILogger } from '../Utils/logger'
+import type { ILogger } from '../Utils/logger'
 import {
 	isHostedLidUser,
 	isHostedPnUser,
 	isLidUser,
 	isPnUser,
 	jidDecode,
-	jidEncode
+	transferDevice,
+	WAJIDDomains
 } from '../WABinary'
 import type { SenderKeyStore } from './Group/group_cipher'
 import { SenderKeyName } from './Group/sender-key-name'
 import { SenderKeyRecord } from './Group/sender-key-record'
 import { GroupCipher, GroupSessionBuilder, SenderKeyDistributionMessage } from './Group'
 
+/**
+ * Helper to check if keys support transactions
+ */
+function hasTransactionSupport(keys: any): keys is SignalKeyStoreWithTransaction {
+	return typeof keys.transaction === 'function'
+}
+
+/**
+ * Execute with transaction if available, otherwise execute directly
+ */
+async function withTransaction<T>(
+	keys: any,
+	exec: () => Promise<T>,
+	key?: string
+): Promise<T> {
+	if (hasTransactionSupport(keys)) {
+		return keys.transaction(exec, key)
+	}
+	return exec()
+}
+
 export function makeLibSignalRepository(
 	auth: SignalAuthState,
 	logger?: ILogger,
 	pnFromLIDUSync?: PnFromLIDUSyncFn
 ): SignalRepository {
-	const storage: SenderKeyStore = signalStorage(auth)
 	const parsedKeys = auth.keys
 
-	// LRU cache for migrated sessions to prevent re-migration
-	const migratedSessionCache = new LRUCache<string, boolean>({
+	// LRU cache for migrated sessions - improved with 3-day TTL and auto-purge
+	const migratedSessionCache = new LRUCache<string, true>({
 		max: 10000,
-		ttl: 1000 * 60 * 60 // 1 hour
+		ttl: 3 * 24 * 60 * 60 * 1000, // 3 days
+		ttlAutopurge: true,
+		updateAgeOnGet: true
 	})
 
 	// In-memory LID mapping cache (LID -> PN)
@@ -38,7 +61,7 @@ export function makeLibSignalRepository(
 	// Reverse cache (PN -> LID) for getLIDForPN lookups
 	const pnToLidCache = new Map<string, string>()
 
-	// LID mapping store implementation
+	// LID mapping store implementation - inline dual-cache (fork's approach)
 	const lidMapping: LIDMappingStore = {
 		async getLIDPNMappings(lids: string[]): Promise<LIDMapping[]> {
 			const result: LIDMapping[] = []
@@ -61,6 +84,7 @@ export function makeLibSignalRepository(
 					if (fetchedMappings) {
 						for (const mapping of fetchedMappings) {
 							lidMappingCache.set(mapping.lid, mapping.pn)
+							pnToLidCache.set(mapping.pn, mapping.lid)
 							result.push(mapping)
 						}
 					}
@@ -132,7 +156,10 @@ export function makeLibSignalRepository(
 		}
 	}
 
-	// Session migration function - enhanced with bulk migration support
+	// Create storage with LID resolution support (upstream improvement)
+	const storage = signalStorage(auth, lidMapping)
+
+	// Session migration function - enhanced with bulk migration and transaction support
 	const migrateSession = async (
 		fromJid: string,
 		toJid: string
@@ -188,69 +215,122 @@ export function makeLibSignalRepository(
 			}
 		}
 
+		logger?.debug(
+			{
+				fromJid,
+				totalDevices: userDevices.length,
+				devicesWithSessions: deviceJids.length,
+				devices: deviceJids
+			},
+			'bulk device migration complete - all user devices processed'
+		)
+
 		if (deviceJids.length === 0) {
 			return { migrated: 0, skipped: 0, total: userDevices.length }
 		}
 
-		let migrated = 0
-		let skipped = 0
-		const sessionUpdates: Record<string, Uint8Array> = {}
+		// Execute migration within transaction for atomicity (upstream improvement)
+		return withTransaction(
+			parsedKeys,
+			async (): Promise<{ migrated: number; skipped: number; total: number }> => {
+				// Prepare migration operations with addressing metadata
+				type MigrationOp = {
+					fromJid: string
+					toJid: string
+					pnUser: string
+					lidUser: string
+					deviceId: number
+					fromAddr: libsignal.ProtocolAddress
+					toAddr: libsignal.ProtocolAddress
+				}
 
-		for (const jid of deviceJids) {
-			const { device } = jidDecode(jid)!
-			const cacheKey = `${user}.${device || 0}`
+				const migrationOps: MigrationOp[] = deviceJids.map(jid => {
+					const lidWithDevice = transferDevice(jid, toJid)
+					const fromDecoded = jidDecode(jid)!
+					const toDecoded = jidDecode(lidWithDevice)!
 
-			// Skip if already migrated
-			if (migratedSessionCache.has(cacheKey)) {
-				skipped++
-				continue
-			}
+					return {
+						fromJid: jid,
+						toJid: lidWithDevice,
+						pnUser: fromDecoded.user,
+						lidUser: toDecoded.user,
+						deviceId: fromDecoded.device || 0,
+						fromAddr: jidToSignalProtocolAddress(jid),
+						toAddr: jidToSignalProtocolAddress(lidWithDevice)
+					}
+				})
 
-			// Get source session
-			const fromAddr = jidToSignalProtocolAddress(jid).toString()
-			const { [fromAddr]: sessionData } = await parsedKeys.get('session', [fromAddr])
+				const totalOps = migrationOps.length
+				let migratedCount = 0
 
-			if (sessionData) {
-				// Create LID target address
-				const { user: lidUser } = jidDecode(toJid)!
-				const toJidWithDevice = device ? `${lidUser}:${device}@lid` : `${lidUser}@lid`
-				const toAddr = jidToSignalProtocolAddress(toJidWithDevice).toString()
+				// Bulk fetch PN sessions - already exist (verified during device discovery)
+				const pnAddrStrings = Array.from(new Set(migrationOps.map(op => op.fromAddr.toString())))
+				const pnSessions = await parsedKeys.get('session', pnAddrStrings)
 
-				sessionUpdates[toAddr] = sessionData
-				migrated++
-				migratedSessionCache.set(cacheKey, true)
-			}
-		}
+				// Prepare bulk session updates (PN → LID migration + deletion)
+				const sessionUpdates: { [key: string]: Uint8Array | null } = {}
 
-		// Bulk write all session updates
-		if (Object.keys(sessionUpdates).length > 0) {
-			await parsedKeys.set({ session: sessionUpdates })
-		}
+				for (const op of migrationOps) {
+					const pnAddrStr = op.fromAddr.toString()
+					const lidAddrStr = op.toAddr.toString()
 
-		logger?.debug({ fromJid, toJid, migrated, skipped, total: deviceJids.length }, 'Session migration completed')
+					const pnSession = pnSessions[pnAddrStr]
+					if (pnSession) {
+						// Session exists (guaranteed from device discovery)
+						const fromSession = libsignal.SessionRecord.deserialize(pnSession)
+						if (fromSession.haveOpenSession()) {
+							// Queue for bulk update: copy to LID, delete from PN
+							sessionUpdates[lidAddrStr] = fromSession.serialize()
+							sessionUpdates[pnAddrStr] = null
 
-		return { migrated, skipped, total: deviceJids.length }
+							migratedCount++
+						}
+					}
+				}
+
+				// Single bulk session update for all migrations
+				if (Object.keys(sessionUpdates).length > 0) {
+					await parsedKeys.set({ session: sessionUpdates })
+					logger?.debug({ migratedSessions: migratedCount }, 'bulk session migration complete')
+
+					// Cache device-level migrations
+					for (const op of migrationOps) {
+						if (sessionUpdates[op.toAddr.toString()]) {
+							const deviceKey = `${op.pnUser}.${op.deviceId}`
+							migratedSessionCache.set(deviceKey, true)
+						}
+					}
+				}
+
+				const skippedCount = totalOps - migratedCount
+				return { migrated: migratedCount, skipped: skippedCount, total: totalOps }
+			},
+			`migrate-${deviceJids.length}-sessions-${jidDecode(toJid)?.user}`
+		)
 	}
 
-	// Validate session existence
+	// Validate session existence - improved with haveOpenSession() check (upstream improvement)
 	const validateSession = async (jid: string): Promise<{ exists: boolean; reason?: string }> => {
 		try {
 			const addr = jidToSignalProtocolAddress(jid)
-			const addrStr = addr.toString()
-			const { [addrStr]: sessionData } = await parsedKeys.get('session', [addrStr])
+			const session = await storage.loadSession(addr.toString())
 
-			if (!sessionData) {
+			if (!session) {
 				return { exists: false, reason: 'no session' }
 			}
 
-			// Session exists in storage
+			// Check if session is actually open (upstream improvement)
+			if (!session.haveOpenSession()) {
+				return { exists: false, reason: 'no open session' }
+			}
+
 			return { exists: true }
 		} catch (error) {
 			return { exists: false, reason: 'validation error' }
 		}
 	}
 
-	// Delete sessions in bulk
+	// Delete sessions in bulk with transaction support
 	const deleteSession = async (jids: string[]): Promise<void> => {
 		if (!jids.length) return
 
@@ -261,17 +341,29 @@ export function makeLibSignalRepository(
 			sessionUpdates[addr.toString()] = null
 		})
 
-		// Single transaction for all deletions
-		await parsedKeys.set({ session: sessionUpdates })
+		// Single transaction for all deletions (upstream improvement)
+		return withTransaction(
+			parsedKeys,
+			async () => {
+				await parsedKeys.set({ session: sessionUpdates })
+			},
+			`delete-${jids.length}-sessions`
+		)
 	}
 
-	return {
+	const repository: SignalRepository = {
 		decryptGroupMessage({ group, authorJid, msg }) {
 			const senderName = jidToSignalSenderKeyName(group, authorJid)
 			const cipher = new GroupCipher(storage, senderName)
 
-			return cipher.decrypt(msg)
+			// Use transaction for atomicity (upstream improvement)
+			return withTransaction(
+				parsedKeys,
+				async () => cipher.decrypt(msg),
+				group
+			)
 		},
+
 		async processSenderKeyDistributionMessage({ item, authorJid }) {
 			const builder = new GroupSessionBuilder(storage)
 			if (!item.groupId) {
@@ -287,94 +379,206 @@ export function makeLibSignalRepository(
 				null,
 				item.axolotlSenderKeyDistributionMessage
 			)
-			const senderNameStr = senderName.toString()
-			const { [senderNameStr]: senderKey } = await auth.keys.get('sender-key', [senderNameStr])
-			if (!senderKey) {
-				await storage.storeSenderKey(senderName, new SenderKeyRecord())
-			}
 
-			await builder.process(senderName, senderMsg)
+			// Use transaction for atomicity (upstream improvement)
+			return withTransaction(
+				parsedKeys,
+				async () => {
+					const senderNameStr = senderName.toString()
+					const { [senderNameStr]: senderKey } = await auth.keys.get('sender-key', [senderNameStr])
+					if (!senderKey) {
+						await storage.storeSenderKey(senderName, new SenderKeyRecord())
+					}
+
+					await builder.process(senderName, senderMsg)
+				},
+				item.groupId
+			)
 		},
+
 		async decryptMessage({ jid, type, ciphertext }) {
 			const addr = jidToSignalProtocolAddress(jid)
 			const session = new libsignal.SessionCipher(storage, addr)
-			let result: Buffer
-			switch (type) {
-				case 'pkmsg':
-					result = await session.decryptPreKeyWhisperMessage(ciphertext)
-					break
-				case 'msg':
-					result = await session.decryptWhisperMessage(ciphertext)
-					break
-				default:
-					throw new Error(`Unknown message type: ${type}`)
+
+			async function doDecrypt() {
+				let result: Buffer
+				switch (type) {
+					case 'pkmsg':
+						result = await session.decryptPreKeyWhisperMessage(ciphertext)
+						break
+					case 'msg':
+						result = await session.decryptWhisperMessage(ciphertext)
+						break
+					default:
+						throw new Error(`Unknown message type: ${type}`)
+				}
+				return result
 			}
 
-			return result
+			// Use transaction for atomicity (upstream improvement)
+			return withTransaction(parsedKeys, doDecrypt, jid)
 		},
+
 		async encryptMessage({ jid, data }) {
 			const addr = jidToSignalProtocolAddress(jid)
 			const cipher = new libsignal.SessionCipher(storage, addr)
 
-			const { type: sigType, body } = await cipher.encrypt(data)
-			const type = sigType === 3 ? 'pkmsg' : 'msg'
-			return { type, ciphertext: Buffer.from(body, 'binary') }
+			// Use transaction for atomicity (upstream improvement)
+			return withTransaction(
+				parsedKeys,
+				async () => {
+					const { type: sigType, body } = await cipher.encrypt(data)
+					const type = sigType === 3 ? 'pkmsg' : 'msg'
+					return { type, ciphertext: Buffer.from(body, 'binary') }
+				},
+				jid
+			)
 		},
+
 		async encryptGroupMessage({ group, meId, data }) {
 			const senderName = jidToSignalSenderKeyName(group, meId)
 			const builder = new GroupSessionBuilder(storage)
 
-			const senderNameStr = senderName.toString()
-			const { [senderNameStr]: senderKey } = await auth.keys.get('sender-key', [senderNameStr])
-			if (!senderKey) {
-				await storage.storeSenderKey(senderName, new SenderKeyRecord())
-			}
+			// Use transaction for atomicity (upstream improvement)
+			return withTransaction(
+				parsedKeys,
+				async () => {
+					const senderNameStr = senderName.toString()
+					const { [senderNameStr]: senderKey } = await auth.keys.get('sender-key', [senderNameStr])
+					if (!senderKey) {
+						await storage.storeSenderKey(senderName, new SenderKeyRecord())
+					}
 
-			const senderKeyDistributionMessage = await builder.create(senderName)
-			const session = new GroupCipher(storage, senderName)
-			const ciphertext = await session.encrypt(data)
+					const senderKeyDistributionMessage = await builder.create(senderName)
+					const session = new GroupCipher(storage, senderName)
+					const ciphertext = await session.encrypt(data)
 
-			return {
-				ciphertext,
-				senderKeyDistributionMessage: senderKeyDistributionMessage.serialize()
-			}
+					return {
+						ciphertext,
+						senderKeyDistributionMessage: senderKeyDistributionMessage.serialize()
+					}
+				},
+				group
+			)
 		},
+
 		async injectE2ESession({ jid, session }) {
+			logger?.trace({ jid }, 'injecting E2EE session')
 			const cipher = new libsignal.SessionBuilder(storage, jidToSignalProtocolAddress(jid))
-			await cipher.initOutgoing(session)
+
+			// Use transaction for atomicity (upstream improvement)
+			return withTransaction(
+				parsedKeys,
+				async () => {
+					await cipher.initOutgoing(session)
+				},
+				jid
+			)
 		},
+
 		jidToSignalProtocolAddress(jid) {
 			return jidToSignalProtocolAddress(jid).toString()
 		},
+
+		// Optimized direct access to LID mapping store
 		lidMapping,
 		migrateSession,
 		validateSession,
 		deleteSession
 	}
+
+	return repository
 }
 
-const jidToSignalProtocolAddress = (jid: string) => {
-	const { user, device } = jidDecode(jid)!
-	return new libsignal.ProtocolAddress(user, device || 0)
+/**
+ * Convert JID to Signal Protocol Address
+ * Improved with WAJIDDomains handling and device 99 validation (upstream improvement)
+ */
+const jidToSignalProtocolAddress = (jid: string): libsignal.ProtocolAddress => {
+	const decoded = jidDecode(jid)!
+	const { user, device, server, domainType } = decoded
+
+	if (!user) {
+		throw new Error(
+			`JID decoded but user is empty: "${jid}" -> user: "${user}", server: "${server}", device: ${device}`
+		)
+	}
+
+	// Handle different domain types (upstream improvement)
+	const signalUser = domainType !== WAJIDDomains.WHATSAPP ? `${user}_${domainType}` : user
+	const finalDevice = device || 0
+
+	// Validate device 99 is only for hosted domains (upstream improvement)
+	if (device === 99 && server !== 'hosted' && server !== 'hosted.lid') {
+		throw new Error('Unexpected non-hosted device JID with device 99. This ID seems invalid. ID: ' + jid)
+	}
+
+	return new libsignal.ProtocolAddress(signalUser, finalDevice)
 }
 
 const jidToSignalSenderKeyName = (group: string, user: string): SenderKeyName => {
 	return new SenderKeyName(group, jidToSignalProtocolAddress(user))
 }
 
-function signalStorage({ creds, keys }: SignalAuthState): SenderKeyStore & Record<string, any> {
+/**
+ * Create signal storage with LID resolution support
+ * Improved with resolveLIDSignalAddress for automatic PN→LID resolution (upstream improvement)
+ */
+function signalStorage(
+	{ creds, keys }: SignalAuthState,
+	lidMapping: LIDMappingStore
+): SenderKeyStore & libsignal.SignalStorage {
+	/**
+	 * Resolve PN signal address to LID if mapping exists (upstream improvement)
+	 * This enables transparent session lookup using LID when PN→LID mapping is known
+	 */
+	const resolveLIDSignalAddress = async (id: string): Promise<string> => {
+		if (id.includes('.')) {
+			const [deviceId, device] = id.split('.')
+			const [user, domainType_] = deviceId!.split('_')
+			const domainType = parseInt(domainType_ || '0')
+
+			// Already a LID address, no resolution needed
+			if (domainType === WAJIDDomains.LID || domainType === WAJIDDomains.HOSTED_LID) {
+				return id
+			}
+
+			// Try to resolve PN to LID
+			const pnJid = `${user!}${device !== '0' ? `:${device}` : ''}@${domainType === WAJIDDomains.HOSTED ? 'hosted' : 's.whatsapp.net'}`
+
+			const lidForPN = await lidMapping.getLIDForPN(pnJid)
+			if (lidForPN) {
+				const lidAddr = jidToSignalProtocolAddress(lidForPN)
+				return lidAddr.toString()
+			}
+		}
+
+		return id
+	}
+
 	return {
 		loadSession: async (id: string) => {
-			const { [id]: sess } = await keys.get('session', [id])
-			if (sess) {
-				return libsignal.SessionRecord.deserialize(sess)
+			try {
+				// Resolve to LID address if mapping exists (upstream improvement)
+				const wireJid = await resolveLIDSignalAddress(id)
+				const { [wireJid]: sess } = await keys.get('session', [wireJid])
+
+				if (sess) {
+					return libsignal.SessionRecord.deserialize(sess)
+				}
+			} catch (e) {
+				return null
 			}
+
+			return null
 		},
 		storeSession: async (id: string, session: libsignal.SessionRecord) => {
-			await keys.set({ session: { [id]: session.serialize() } })
+			// Resolve to LID address if mapping exists (upstream improvement)
+			const wireJid = await resolveLIDSignalAddress(id)
+			await keys.set({ session: { [wireJid]: session.serialize() } })
 		},
 		isTrustedIdentity: () => {
-			return true
+			return true // todo: implement
 		},
 		loadPreKey: async (id: number | string) => {
 			const keyId = id.toString()
@@ -413,7 +617,7 @@ function signalStorage({ creds, keys }: SignalAuthState): SenderKeyStore & Recor
 			const { signedIdentityKey } = creds
 			return {
 				privKey: Buffer.from(signedIdentityKey.private),
-				pubKey: generateSignalPubKey(signedIdentityKey.public)
+				pubKey: Buffer.from(generateSignalPubKey(signedIdentityKey.public))
 			}
 		}
 	}

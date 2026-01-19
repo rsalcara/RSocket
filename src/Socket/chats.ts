@@ -214,8 +214,8 @@ export const makeChatsSocket = (config: SocketConfig) => {
 			if (section.attrs.type === 'all') {
 				for (const bot of getBinaryNodeChildren(section, 'bot')) {
 					botList.push({
-						jid: bot.attrs.jid,
-						personaId: bot.attrs['persona_id']
+						jid: bot.attrs.jid!,
+						personaId: bot.attrs['persona_id']!
 					})
 				}
 			}
@@ -280,16 +280,18 @@ export const makeChatsSocket = (config: SocketConfig) => {
 
 		if (jidNormalizedUser(jid) !== jidNormalizedUser(authState.creds.me!.id)) {
 			targetJid = jidNormalizedUser(jid) // in case it is someone other than us
+		} else {
+			targetJid = undefined
 		}
 
 		const { img } = await generateProfilePicture(content, dimensions)
 		await query({
 			tag: 'iq',
 			attrs: {
-				target: targetJid,
 				to: S_WHATSAPP_NET,
 				type: 'set',
-				xmlns: 'w:profile:picture'
+				xmlns: 'w:profile:picture',
+				...(targetJid ? { target: targetJid } : {})
 			},
 			content: [
 				{
@@ -312,15 +314,17 @@ export const makeChatsSocket = (config: SocketConfig) => {
 
 		if (jidNormalizedUser(jid) !== jidNormalizedUser(authState.creds.me!.id)) {
 			targetJid = jidNormalizedUser(jid) // in case it is someone other than us
+		} else {
+			targetJid = undefined
 		}
 
 		await query({
 			tag: 'iq',
 			attrs: {
-				target: targetJid,
 				to: S_WHATSAPP_NET,
 				type: 'set',
-				xmlns: 'w:profile:picture'
+				xmlns: 'w:profile:picture',
+				...(targetJid ? { target: targetJid } : {})
 			}
 		})
 	}
@@ -486,7 +490,7 @@ export const makeChatsSocket = (config: SocketConfig) => {
 					const states = {} as { [T in WAPatchName]: LTHashState }
 					const nodes: BinaryNode[] = []
 
-					for (const name of collectionsToHandle) {
+					for (const name of collectionsToHandle as Set<WAPatchName>) {
 						const result = await authState.keys.get('app-state-sync-version', [name])
 						let state = result[name]
 
@@ -600,11 +604,11 @@ export const makeChatsSocket = (config: SocketConfig) => {
 						}
 					}
 				}
-			})
+			}, authState?.creds?.me?.id || 'resync-app-state')
 
 			const { onMutation } = newAppStateChunkHandler(isInitialSync)
 			for (const key in globalMutationMap) {
-				onMutation(globalMutationMap[key])
+				onMutation(globalMutationMap[key]!)
 			}
 		}
 	)
@@ -775,7 +779,7 @@ export const makeChatsSocket = (config: SocketConfig) => {
 				await query(node)
 
 				await authState.keys.set({ 'app-state-sync-version': { [name]: state } })
-			})
+			}, authState?.creds?.me?.id || 'app-patch')
 		})
 
 		if (config.emitOwnEvents) {
@@ -790,11 +794,12 @@ export const makeChatsSocket = (config: SocketConfig) => {
 				logger
 			)
 			for (const key in mutationMap) {
-				onMutation(mutationMap[key])
+				onMutation(mutationMap[key]!)
 			}
 		}
 	}
 
+	//TODO: implement both protocol 1 and protocol 2 prop fetching, specially for abKey for WM
 	/** sending non-abt props may fix QR scan fail if server expects */
 	const fetchProps = async () => {
 		const resultNode = await query({
@@ -1041,7 +1046,8 @@ export const makeChatsSocket = (config: SocketConfig) => {
 
 		const historyMsg = getHistoryMsg(msg.message!)
 		const shouldProcessHistoryMsg = historyMsg
-			? shouldSyncHistoryMessage(historyMsg) && PROCESSABLE_HISTORY_TYPES.includes(historyMsg.syncType!)
+			? shouldSyncHistoryMessage(historyMsg) &&
+				PROCESSABLE_HISTORY_TYPES.includes(historyMsg.syncType! as proto.HistorySync.HistorySyncType)
 			: false
 
 		// State machine: decide on sync and flush
@@ -1167,6 +1173,7 @@ export const makeChatsSocket = (config: SocketConfig) => {
 
 		awaitingSyncTimeout = setTimeout(() => {
 			if (syncState === SyncState.AwaitingInitialSync) {
+				// TODO: investigate
 				logger.warn('Timeout in AwaitingInitialSync, forcing state to Online and flushing buffer')
 				syncState = SyncState.Online
 				ev.flush()
