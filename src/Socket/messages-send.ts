@@ -133,14 +133,15 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 					},
 					content: [{ tag: 'media_conn', attrs: {} }]
 				})
-				const mediaConnNode = getBinaryNodeChild(result, 'media_conn')
+				const mediaConnNode = getBinaryNodeChild(result, 'media_conn')!
+				// TODO: explore full length of data that whatsapp provides
 				const node: MediaConnInfo = {
 					hosts: getBinaryNodeChildren(mediaConnNode, 'host').map(({ attrs }) => ({
-						hostname: attrs.hostname,
-						maxContentLengthBytes: +attrs.maxContentLengthBytes
+						hostname: attrs.hostname!,
+						maxContentLengthBytes: +attrs.maxContentLengthBytes!
 					})),
-					auth: mediaConnNode!.attrs.auth,
-					ttl: +mediaConnNode!.attrs.ttl,
+					auth: mediaConnNode.attrs.auth!,
+					ttl: +mediaConnNode.attrs.ttl!,
 					fetchDate: new Date()
 				}
 				logger.debug('fetched media conn')
@@ -176,7 +177,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 			node.attrs.t = unixTimestampSeconds().toString()
 		}
 
-		if (type === 'sender' && (isPnUser(jid) || isLidUser(jid) || isJidUser(jid))) {
+		if (type === 'sender' && (isPnUser(jid) || isLidUser(jid))) {
 			node.attrs.recipient = jid
 			node.attrs.to = participant!
 		} else {
@@ -380,6 +381,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 		return didFetchNewSession
 	}
 
+	//TODO: for later, abstract the logic to send a Peer Message instead of just PDO - useful for App State Key Resync with phone
 	const sendPeerDataOperationMessage = async (
 		pdoMessage: proto.Message.IPeerDataOperationRequestMessage
 	): Promise<string> => {
@@ -850,12 +852,16 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 				tag: 'message',
 				attrs: {
 					id: msgId,
+					to: destinationJid,
 					type: getMessageType(message),
 					...(additionalAttributes || {})
 				},
 				content: binaryNodeContent
 			}
 
+			// if the participant to send to is explicitly specified (generally retry recp)
+			// ensure the message is only sent to that person
+			// if a retry receipt is sent to everyone -- it'll fail decryption for everyone else who received the msg
 			if (participant) {
 				if (isJidGroup(destinationJid)) {
 					stanza.attrs.to = destinationJid
@@ -1161,7 +1167,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 								content.url = getUrlFromDirectPath(content.directPath!)
 
 								logger.debug({ directPath: media.directPath, key: result.key }, 'media update successful')
-							} catch (err) {
+							} catch (err: any) {
 								error = err
 							}
 						}
@@ -1209,7 +1215,9 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 							logger,
 							uploadImage: generateHighQualityLinkPreview ? waUploadToServer : undefined
 						}),
+					//TODO: CACHE
 					getProfilePicUrl: sock.profilePictureUrl,
+					getCallLink: sock.createCallLink,
 					upload: waUploadToServer,
 					mediaCache: config.mediaCache,
 					options: config.options,
