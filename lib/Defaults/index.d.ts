@@ -23,7 +23,7 @@ export declare const WA_CERT_DETAILS: {
     ISSUER: string;
     PUBLIC_KEY: any;
 };
-export declare const PROCESSABLE_HISTORY_TYPES: proto.Message.HistorySyncNotification.HistorySyncType[];
+export declare const PROCESSABLE_HISTORY_TYPES: proto.HistorySync.HistorySyncType[];
 export declare const DEFAULT_CONNECTION_CONFIG: SocketConfig;
 export declare const MEDIA_PATH_MAP: {
     [T in MediaType]?: string;
